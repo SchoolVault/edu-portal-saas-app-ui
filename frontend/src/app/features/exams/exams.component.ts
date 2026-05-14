@@ -25,15 +25,41 @@ import {
   MarksEntryScopeRow,
   SchoolClass,
   Student,
-  ExamTemplate
+  ExamTemplate,
+  ExamModuleConfigHistoryItem,
+  ExamModuleConfigKey
 } from '../../core/models/models';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { sliceToPage } from '../../core/utils/paginate';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { ExamsFacade } from './exams.facade';
+import { ExamShellComponent } from './components/exam-shell.component';
+import { ExamMarksEntryComponent } from './components/exam-marks-entry.component';
+import { ExamTimetableEditorComponent } from './components/exam-timetable-editor.component';
+import { ExamConfigEngineComponent } from './components/exam-config-engine.component';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 
 type ExamDetailTab = 'marks' | 'timetable';
+type ExamWizardStep = 1 | 2 | 3 | 4;
+type ReportSectionLayout = 'table' | 'list' | 'badges' | 'remarks';
+type ExamListFilterCode = 'ALL' | 'UPCOMING' | 'ONGOING' | 'COMPLETED' | 'APPROVED' | 'FROZEN' | 'PUBLISHED';
+
+interface ReportCardFieldDraft {
+  key: string;
+  label: string;
+  format: string;
+  visible: boolean;
+  order: number;
+}
+
+interface ReportCardSectionDraft {
+  key: string;
+  title: string;
+  layout: ReportSectionLayout;
+  fields: ReportCardFieldDraft[];
+}
 
 /** Grid order: completed → ongoing → upcoming → cancelled (parents/staff see finished work first). */
 function examGridStatusSortRank(status: string | undefined): number {
@@ -68,8 +94,13 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
     SchoolClassNamePipe,
     ErpI18nPhDirective,
     ErpI18nTextDirective,
+    ExamShellComponent,
+    ExamMarksEntryComponent,
+    ExamTimetableEditorComponent,
+    ExamConfigEngineComponent,
   ],
   template: `
+    <app-exam-shell>
     <div data-testid="exams-page">
       <div class="erp-filter-toolbar mb-4 animate-in">
         <div>
@@ -92,6 +123,9 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
         <div class="erp-filter-toolbar__actions">
           <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="refreshExams()">
             <i class="bi bi-arrow-clockwise"></i> {{ 'exams.refresh' | translate }}
+          </button>
+          <button *ngIf="canConfigureEngine" type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="openConfigModal()">
+            <i class="bi bi-sliders"></i> {{ 'exams.configureEngine' | translate }}
           </button>
           <button *ngIf="canCreateExam" type="button" class="btn-primary-erp btn-sm erp-filter-toolbar__action" (click)="openCreateModal()">
             <i class="bi bi-plus-lg"></i> {{ 'exams.createExam' | translate }}
@@ -121,9 +155,8 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
       </div>
 
       <div class="erp-card mb-3 animate-in animate-in-delay-1" *ngIf="role !== 'parent' && staffUsesServerPaging">
-        <div class="erp-filter-toolbar">
-          <div class="erp-filter-toolbar__search">
-            <div>
+        <div class="erp-filter-toolbar exams-list-toolbar">
+          <div class="exams-list-toolbar__search">
               <label class="erp-label">{{ 'exams.listSearch' | translate }}</label>
               <input
                 type="search"
@@ -132,7 +165,12 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
                 (ngModelChange)="onStaffExamSearchChange()"
                 [attr.placeholder]="'exams.listSearchPh' | translate"
               />
-            </div>
+          </div>
+          <div class="exams-list-toolbar__filter">
+              <label class="erp-label">{{ 'exams.listFilterBy' | translate }}</label>
+              <select class="erp-select" [(ngModel)]="selectedExamListFilter" (ngModelChange)="onStaffExamFilterChange()">
+                <option *ngFor="let opt of examListFilterOptions" [ngValue]="opt.code">{{ opt.labelKey | translate }}</option>
+              </select>
           </div>
         </div>
       </div>
@@ -150,6 +188,9 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
               <div class="d-flex flex-column gap-1 align-items-end">
                 <span class="badge-erp" [ngClass]="getExamBadge(exam.status)">{{ examStatusLabel(exam.status) }}</span>
                 <span class="badge-erp badge-neutral">{{ examWorkflowLabel(exam.workflowState) }}</span>
+                <span *ngIf="isFrozenWorkflow(exam.workflowState)" class="small text-muted" title="Frozen = locked, no further edits allowed.">
+                  Frozen = locked, no further edits allowed.
+                </span>
               </div>
             </div>
             <div style="font-size: 12px; color: var(--clr-text-muted);">
@@ -205,6 +246,12 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
         </div>
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3" *ngIf="selectedExam && role !== 'parent'">
           <span class="badge-erp badge-neutral">{{ examWorkflowLabel(selectedExam.workflowState) }}</span>
+          <span *ngIf="isFrozenWorkflow(selectedExam.workflowState)" class="small text-muted" title="Frozen = locked, no further edits allowed.">
+            Frozen = locked, no further edits allowed.
+          </span>
+          <button *ngIf="canEditExamMeta" type="button" class="btn-outline-erp btn-sm" (click)="openEditModal(selectedExam)">
+            <i class="bi bi-pencil-square"></i> {{ 'exams.editExam' | translate }}
+          </button>
           <button *ngIf="canSubmitForApproval(selectedExam)" type="button" class="btn-outline-erp btn-sm" (click)="submitSelectedExamForApproval()">
             {{ 'exams.submitApproval' | translate }}
           </button>
@@ -268,7 +315,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
           <p *ngIf="selectedExam.resultsPublished && !marks.length" class="text-muted small mb-0">{{ 'exams.noMarkRows' | translate }}</p>
         </ng-container>
 
-        <ng-container *ngIf="detailTab === 'marks' && canEnterMarks">
+        <app-exam-marks-entry *ngIf="detailTab === 'marks' && canEnterMarks">
           <div class="row g-3 align-items-end mb-3">
             <div class="col-md-4">
               <label class="erp-label">{{ 'exams.labelClass' | translate }}</label>
@@ -286,16 +333,10 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
             </div>
             <div class="col-md-4">
               <label class="erp-label">{{ 'exams.labelSubject' | translate }}</label>
-              <select *ngIf="teacherMarksScopeActive && subjectSelectOptions.length" class="erp-select" [(ngModel)]="marksSubject">
+              <select class="erp-select" [(ngModel)]="marksSubject" [disabled]="!marksSubjectOptions.length">
                 <option value="">{{ 'exams.selectSubject' | translate }}</option>
-                <option *ngFor="let s of subjectSelectOptions" [ngValue]="s">{{ s }}</option>
+                <option *ngFor="let s of marksSubjectOptions" [ngValue]="s">{{ s }}</option>
               </select>
-              <input
-                *ngIf="!teacherMarksScopeActive"
-                class="erp-input"
-                erpI18nPh="exams.subjectPlaceholder"
-                [(ngModel)]="marksSubject"
-              />
             </div>
             <div class="col-md-4">
               <label class="erp-label">{{ 'exams.labelMaxMarks' | translate }}</label>
@@ -400,9 +441,9 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
               (pageSizeChange)="onRecordedPageSize($event)"
             />
           </div>
-        </ng-container>
+        </app-exam-marks-entry>
 
-        <ng-container *ngIf="role === 'parent' && parentDetailTab === 'timetable'">
+        <app-exam-timetable-editor *ngIf="role === 'parent' && parentDetailTab === 'timetable'">
           <p class="text-muted small mb-3">{{ 'exams.parentTimetableLead' | translate }}</p>
           <div class="erp-table-scroll mb-3" *ngIf="scheduleDraft.length">
             <table class="erp-table">
@@ -447,9 +488,9 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
           </div>
           <p *ngIf="scheduleUiMessage && scheduleDraft.length === 0" class="small mb-2" [class.text-danger]="scheduleUiError">{{ scheduleUiMessage }}</p>
           <p *ngIf="!scheduleDraft.length" class="text-muted small mb-0">{{ 'exams.noTimetableYet' | translate }}</p>
-        </ng-container>
+        </app-exam-timetable-editor>
 
-        <ng-container *ngIf="role !== 'parent' && detailTab === 'timetable'">
+        <app-exam-timetable-editor *ngIf="role !== 'parent' && detailTab === 'timetable'">
           <p class="text-muted small mb-3">{{ 'exams.staffTimetableLead' | translate }}</p>
           <div class="erp-table-scroll mb-3" *ngIf="scheduleDraft.length || canEditSchedule">
             <table class="erp-table">
@@ -479,8 +520,18 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
                   /></td>
                   <td><input type="time" class="erp-input" [(ngModel)]="row.startTime" [disabled]="!canEditSchedule" /></td>
                   <td><input type="time" class="erp-input" [(ngModel)]="row.endTime" [disabled]="!canEditSchedule" /></td>
-                  <td><input class="erp-input" [(ngModel)]="row.subjectName" [disabled]="!canEditSchedule" /></td>
-                  <td><input class="erp-input" [(ngModel)]="row.paperType" [disabled]="!canEditSchedule" /></td>
+                  <td>
+                    <select class="erp-select" [(ngModel)]="row.subjectName" [disabled]="!canEditSchedule">
+                      <option value="">{{ 'exams.selectSubject' | translate }}</option>
+                      <option *ngFor="let subject of scheduleSubjectOptions(row)" [ngValue]="subject">{{ subject }}</option>
+                    </select>
+                  </td>
+                  <td>
+                    <select class="erp-select" [(ngModel)]="row.paperType" [disabled]="!canEditSchedule">
+                      <option value="">{{ 'exams.dash' | translate }}</option>
+                      <option *ngFor="let paperType of schedulePaperTypeOptionsForRow(row)" [ngValue]="paperType">{{ paperType }}</option>
+                    </select>
+                  </td>
                   <td>
                     <select class="erp-select" [(ngModel)]="row.classId" (change)="onScheduleRowClass(row)" [disabled]="!canEditSchedule">
                       <option *ngFor="let c of classes" [ngValue]="c.id">{{ c.name | schoolClassName }}</option>
@@ -517,21 +568,258 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
           </div>
           <p *ngIf="scheduleUiMessage" class="small mt-2 mb-0" [class.text-danger]="scheduleUiError" [class.text-success]="!scheduleUiError">{{ scheduleUiMessage }}</p>
           <p *ngIf="!scheduleDraft.length && !canEditSchedule" class="text-muted small">{{ 'exams.noTimetableYet' | translate }}</p>
-        </ng-container>
+        </app-exam-timetable-editor>
       </div>
     </div>
+    </app-exam-shell>
+
+    <app-exam-config-engine>
+    <div class="modal-overlay" *ngIf="showConfigModal" (click)="showConfigModal = false">
+      <div class="modal-content-erp modal-lg exam-config-modal" (click)="$event.stopPropagation()">
+        <div class="modal-header-erp">
+          <h3>{{ 'exams.configTitle' | translate }}</h3>
+          <button type="button" class="btn-icon" (click)="showConfigModal = false"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body-erp">
+          <p class="small text-muted mb-3">{{ 'exams.configLead' | translate }}</p>
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <button type="button" class="btn-outline-erp btn-sm" (click)="applyBoardPreset('CBSE')">{{ 'exams.boardPreset.cbse' | translate }}</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="applyBoardPreset('ICSE')">{{ 'exams.boardPreset.icse' | translate }}</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="applyBoardPreset('STATE')">{{ 'exams.boardPreset.state' | translate }}</button>
+          </div>
+          <div class="erp-form-group">
+            <label class="erp-label">{{ 'exams.labelAcademicYear' | translate }}</label>
+            <select class="erp-select" [(ngModel)]="configAcademicYearId" (ngModelChange)="onConfigYearChange()">
+              <option [ngValue]="null">{{ 'exams.selectYear' | translate }}</option>
+              <option *ngFor="let year of academicYears" [ngValue]="year.id">{{ year.name }}</option>
+            </select>
+          </div>
+          <div class="erp-card p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h4 class="mb-0">{{ 'exams.reportCardBuilderTitle' | translate }}</h4>
+              <button type="button" class="btn-outline-erp btn-sm" (click)="addReportSection()">{{ 'exams.reportCardBuilderAddSection' | translate }}</button>
+            </div>
+            <p class="small text-muted mb-3">{{ 'exams.reportCardBuilderLead' | translate }}</p>
+            <div *ngFor="let section of reportCardSectionsBuilder; let sIdx = index" class="builder-section mb-3">
+              <div class="row g-2 align-items-end builder-section-head">
+                <div class="col-12 col-lg-6 col-xl-3">
+                  <label class="erp-label small">{{ 'exams.reportCardSectionKey' | translate }}</label>
+                  <input class="erp-input" [(ngModel)]="section.key" />
+                </div>
+                <div class="col-12 col-lg-6 col-xl-3">
+                  <label class="erp-label small">{{ 'exams.reportCardSectionTitle' | translate }}</label>
+                  <input class="erp-input" [(ngModel)]="section.title" />
+                </div>
+                <div class="col-12 col-lg-6 col-xl-2">
+                  <label class="erp-label small">{{ 'exams.reportCardSectionLayout' | translate }}</label>
+                  <select class="erp-select" [(ngModel)]="section.layout">
+                    <option value="table">{{ 'exams.reportLayout.table' | translate }}</option>
+                    <option value="list">{{ 'exams.reportLayout.list' | translate }}</option>
+                    <option value="badges">{{ 'exams.reportLayout.badges' | translate }}</option>
+                    <option value="remarks">{{ 'exams.reportLayout.remarks' | translate }}</option>
+                  </select>
+                </div>
+                <div class="col-12 col-lg-6 col-xl-4 d-flex gap-2 builder-actions">
+                  <button type="button" class="btn-outline-erp btn-sm" (click)="moveReportSection(sIdx, -1)" [disabled]="sIdx === 0">↑</button>
+                  <button type="button" class="btn-outline-erp btn-sm" (click)="moveReportSection(sIdx, 1)" [disabled]="sIdx === reportCardSectionsBuilder.length - 1">↓</button>
+                  <button type="button" class="btn-outline-erp btn-sm" (click)="addReportField(sIdx)">{{ 'exams.reportCardBuilderAddField' | translate }}</button>
+                  <button type="button" class="btn-outline-erp btn-sm text-danger" (click)="removeReportSection(sIdx)">{{ 'exams.removeRowTitle' | translate }}</button>
+                </div>
+              </div>
+              <div *ngIf="section.fields.length" class="mt-2">
+                <div *ngFor="let field of section.fields; let fIdx = index" class="row g-2 align-items-end mb-2 builder-field-row">
+                  <div class="col-12 col-md-6 col-xl-2">
+                    <label class="erp-label small">{{ 'exams.reportCardFieldKey' | translate }}</label>
+                    <input class="erp-input" [(ngModel)]="field.key" />
+                  </div>
+                  <div class="col-12 col-md-6 col-xl-3">
+                    <label class="erp-label small">{{ 'exams.reportCardFieldLabel' | translate }}</label>
+                    <input class="erp-input" [(ngModel)]="field.label" />
+                  </div>
+                  <div class="col-12 col-md-6 col-xl-2">
+                    <label class="erp-label small">{{ 'exams.reportCardFieldFormat' | translate }}</label>
+                    <select class="erp-select" [(ngModel)]="field.format">
+                      <option value="">{{ 'exams.reportFieldFormat.none' | translate }}</option>
+                      <option value="percent">{{ 'exams.reportFieldFormat.percent' | translate }}</option>
+                      <option value="number">{{ 'exams.reportFieldFormat.number' | translate }}</option>
+                      <option value="currency_inr">{{ 'exams.reportFieldFormat.currencyInr' | translate }}</option>
+                      <option value="title">{{ 'exams.reportFieldFormat.title' | translate }}</option>
+                      <option value="uppercase">{{ 'exams.reportFieldFormat.uppercase' | translate }}</option>
+                      <option value="lowercase">{{ 'exams.reportFieldFormat.lowercase' | translate }}</option>
+                    </select>
+                  </div>
+                  <div class="col-6 col-md-3 col-xl-1">
+                    <label class="erp-label small">{{ 'exams.reportCardFieldOrder' | translate }}</label>
+                    <input type="number" class="erp-input" min="1" [(ngModel)]="field.order" />
+                  </div>
+                  <div class="col-6 col-md-3 col-xl-2 d-flex align-items-center">
+                    <label class="d-flex align-items-center gap-2 builder-visible-toggle">
+                      <input type="checkbox" [(ngModel)]="field.visible" />
+                      <span>{{ 'exams.reportCardFieldVisible' | translate }}</span>
+                    </label>
+                  </div>
+                  <div class="col-12 col-xl-2 d-flex justify-content-xl-end">
+                    <button type="button" class="btn-outline-erp btn-sm text-danger" (click)="removeReportField(sIdx, fIdx)">{{ 'exams.removeRowTitle' | translate }}</button>
+                  </div>
+                  <div class="col-12" *ngIf="fieldErrorAt(sIdx, fIdx)">
+                    <p class="small text-danger mb-0">{{ fieldErrorAt(sIdx, fIdx) }}</p>
+                  </div>
+                </div>
+              </div>
+              <p class="small text-danger mb-0" *ngIf="sectionErrorAt(sIdx)">{{ sectionErrorAt(sIdx) }}</p>
+            </div>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="toggleConfigAdvancedJson()">
+              {{ showConfigAdvancedJson ? ('exams.hideAdvancedJson' | translate) : ('exams.showAdvancedJson' | translate) }}
+            </button>
+          </div>
+          <div class="erp-card p-3 mb-3">
+            <h4 class="mb-2">{{ 'exams.configPreviewTitle' | translate }}</h4>
+            <p class="small text-muted mb-2">{{ 'exams.configPreviewLead' | translate }}</p>
+            <div *ngIf="!showConfigAdvancedJson" class="small text-muted">
+              <p class="mb-2">This preview is simplified for admins. Enable advanced mode to view full JSON.</p>
+              <ul class="mb-0 ps-3">
+                <li>Sections configured: {{ reportCardSectionsBuilder.length }}</li>
+                <li>Passing threshold: {{ configFriendly.passPercent }}%</li>
+                <li>Workflow approval: {{ configFriendly.requireApproval ? 'Required' : 'Not required' }}</li>
+                <li>Auto-publish results: {{ configFriendly.autoPublishResults ? 'Enabled' : 'Disabled' }}</li>
+              </ul>
+            </div>
+            <pre *ngIf="showConfigAdvancedJson" class="builder-preview-json">{{ reportCardPreviewJson }}</pre>
+          </div>
+          <div class="erp-card p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h4 class="mb-0">{{ 'exams.configHistoryTitle' | translate }}</h4>
+              <button type="button" class="btn-outline-erp btn-sm" (click)="loadConfigHistory()">{{ 'exams.refresh' | translate }}</button>
+            </div>
+            <p class="small text-muted mb-2">{{ 'exams.configHistoryLead' | translate }}</p>
+            <div class="row g-2 mb-2">
+              <div class="col-md-6">
+                <label class="erp-label small">{{ 'exams.configHistoryCompareLeft' | translate }}</label>
+                <select class="erp-select" [(ngModel)]="selectedHistoryLeftVersion">
+                  <option *ngFor="let h of configHistoryRows" [ngValue]="h.versionNo">
+                    v{{ h.versionNo }} {{ h.createdAt || '' }}
+                  </option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="erp-label small">{{ 'exams.configHistoryCompareRight' | translate }}</label>
+                <select class="erp-select" [(ngModel)]="selectedHistoryRightVersion">
+                  <option *ngFor="let h of configHistoryRows" [ngValue]="h.versionNo">
+                    v{{ h.versionNo }} {{ h.createdAt || '' }}
+                  </option>
+                </select>
+              </div>
+            </div>
+            <p class="small text-muted mb-2" *ngIf="!configHistoryRows.length">{{ 'reports.noData' | translate }}</p>
+            <div class="erp-card p-2 mb-2" *ngIf="selectedHistoryDiffSummary.length">
+              <h5 class="mb-1">{{ 'exams.configHistoryChangeSummaryTitle' | translate }}</h5>
+              <ul class="small mb-0 ps-3">
+                <li *ngFor="let row of selectedHistoryDiffSummary">{{ row }}</li>
+              </ul>
+            </div>
+            <div class="row g-2 mb-2" *ngIf="showConfigAdvancedJson">
+              <div class="col-md-6">
+                <label class="erp-label small">{{ 'exams.configHistoryCompareLeft' | translate }}</label>
+                <textarea class="erp-input builder-preview-json" [ngModel]="selectedHistoryLeftConfigJson" readonly></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="erp-label small">{{ 'exams.configHistoryCompareRight' | translate }}</label>
+                <textarea class="erp-input builder-preview-json" [ngModel]="selectedHistoryRightConfigJson" readonly></textarea>
+              </div>
+            </div>
+            <p *ngIf="!showConfigAdvancedJson" class="small text-muted mb-2">Enable advanced mode to view raw version JSON comparisons.</p>
+            <div class="d-flex flex-wrap gap-2">
+              <button
+                type="button"
+                class="btn-outline-erp btn-sm"
+                *ngFor="let h of configHistoryRows | slice:0:5"
+                (click)="restoreReportCardSchemaFromVersion(h.versionNo)"
+                [disabled]="configSaving"
+              >
+                {{ 'exams.configRestoreVersion' | translate:{ versionNo: h.versionNo } }}
+              </button>
+            </div>
+          </div>
+          <div class="erp-card p-3 mb-3">
+            <h4 class="mb-2">Grading rules</h4>
+            <div class="row g-2">
+              <div class="col-md-6">
+                <label class="erp-label small">Grading style</label>
+                <select class="erp-select" [(ngModel)]="configFriendly.gradingScale">
+                  <option value="percentage">Percentage</option>
+                  <option value="grade">Grade only</option>
+                  <option value="hybrid">Hybrid</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="erp-label small">Passing marks (%)</label>
+                <input type="number" min="0" max="100" class="erp-input" [(ngModel)]="configFriendly.passPercent" />
+              </div>
+            </div>
+          </div>
+          <div class="erp-card p-3 mb-3">
+            <h4 class="mb-2">Approval and publishing rules</h4>
+            <div class="d-flex flex-column gap-2 small">
+              <label class="d-flex align-items-center gap-2"><input type="checkbox" [(ngModel)]="configFriendly.requireApproval" /> Require approval before finalizing results</label>
+              <label class="d-flex align-items-center gap-2"><input type="checkbox" [(ngModel)]="configFriendly.allowTeacherDraft" /> Allow teachers to save draft updates</label>
+              <label class="d-flex align-items-center gap-2"><input type="checkbox" [(ngModel)]="configFriendly.autoPublishResults" /> Auto-publish results after approval</label>
+            </div>
+          </div>
+          <div class="erp-card p-3 mb-3">
+            <h4 class="mb-2">AI assistant options</h4>
+            <div class="d-flex flex-column gap-2 small">
+              <label class="d-flex align-items-center gap-2"><input type="checkbox" [(ngModel)]="configFriendly.enableRemarksSuggestion" /> Suggest teacher remarks automatically</label>
+              <label class="d-flex align-items-center gap-2"><input type="checkbox" [(ngModel)]="configFriendly.enableRiskPrediction" /> Show risk prediction insights</label>
+              <label class="d-flex align-items-center gap-2"><input type="checkbox" [(ngModel)]="configFriendly.enableTopperTrend" /> Show topper trend analytics</label>
+            </div>
+          </div>
+          <div *ngIf="showConfigAdvancedJson">
+            <div class="erp-form-group">
+              <label class="erp-label">{{ 'exams.schemaLabel.grading' | translate }}</label>
+              <textarea class="erp-input" style="min-height: 140px;" [(ngModel)]="moduleConfigDraft.GRADING_SCHEMA"></textarea>
+            </div>
+            <div class="erp-form-group">
+              <label class="erp-label">{{ 'exams.schemaLabel.reportCard' | translate }}</label>
+              <textarea class="erp-input" style="min-height: 140px;" [(ngModel)]="moduleConfigDraft.REPORT_CARD_SCHEMA"></textarea>
+            </div>
+            <div class="erp-form-group">
+              <label class="erp-label">{{ 'exams.schemaLabel.workflow' | translate }}</label>
+              <textarea class="erp-input" style="min-height: 120px;" [(ngModel)]="moduleConfigDraft.WORKFLOW_SCHEMA"></textarea>
+            </div>
+            <div class="erp-form-group mb-0">
+              <label class="erp-label">{{ 'exams.schemaLabel.ai' | translate }}</label>
+              <textarea class="erp-input" style="min-height: 120px;" [(ngModel)]="moduleConfigDraft.AI_SCHEMA"></textarea>
+            </div>
+          </div>
+          <p *ngIf="configMessage" class="small mt-2 mb-0" [class.text-danger]="configError" [class.text-success]="!configError">{{ configMessage }}</p>
+        </div>
+        <div class="modal-footer-erp">
+          <button type="button" class="btn-outline-erp" (click)="showConfigModal = false">{{ 'exams.cancel' | translate }}</button>
+          <button type="button" class="btn-primary-erp" (click)="saveModuleConfigs()" [disabled]="configSaving">
+            {{ configSaving ? ('exams.configSaving' | translate) : ('exams.configSave' | translate) }}
+          </button>
+        </div>
+      </div>
+    </div>
+    </app-exam-config-engine>
 
     <div class="modal-overlay" *ngIf="showCreateModal" (click)="showCreateModal = false">
       <div class="modal-content-erp modal-lg" (click)="$event.stopPropagation()">
         <div class="modal-header-erp">
-          <h3>{{ 'exams.modalCreateTitle' | translate }}</h3>
+          <h3>{{ (editExamId == null ? 'exams.modalCreateTitle' : 'exams.modalEditTitle') | translate }}</h3>
           <button type="button" class="btn-icon" (click)="showCreateModal = false"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body-erp">
-          <div class="erp-form-group">
+          <div class="wizard-steps mb-3">
+            <span [class.active]="examWizardStep === 1" [class.done]="examWizardStep > 1">1</span><i></i>
+            <span [class.active]="examWizardStep === 2" [class.done]="examWizardStep > 2">2</span><i></i>
+            <span [class.active]="examWizardStep === 3" [class.done]="examWizardStep > 3">3</span><i></i>
+            <span [class.active]="examWizardStep === 4">4</span>
+          </div>
+          <div class="erp-form-group" *ngIf="examWizardStep === 1">
             <label class="erp-label">{{ 'exams.labelExamName' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="newExam.name" />
           </div>
-          <div class="row g-3">
+          <div class="row g-3" *ngIf="examWizardStep === 1">
             <div class="col-md-6">
               <div class="erp-form-group">
                 <label class="erp-label">{{ 'exams.labelTemplate' | translate }}</label>
@@ -547,6 +835,48 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
                 <input type="text" class="erp-input" [attr.placeholder]="'exams.examTypePh' | translate" [(ngModel)]="newExam.examType" />
               </div>
             </div>
+            <div class="col-md-3">
+              <div class="erp-form-group">
+                <label class="erp-label">{{ 'exams.labelBoardCode' | translate }}</label>
+                <select class="erp-select" [(ngModel)]="newExam.boardCode">
+                  <option value="CBSE">{{ 'exams.boardCode.cbse' | translate }}</option>
+                  <option value="ICSE">{{ 'exams.boardCode.icse' | translate }}</option>
+                  <option value="STATE">{{ 'exams.boardCode.state' | translate }}</option>
+                  <option value="IB">{{ 'exams.boardCode.ib' | translate }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="erp-form-group">
+                <label class="erp-label">{{ 'exams.labelSessionType' | translate }}</label>
+                <select class="erp-select" [(ngModel)]="newExam.sessionType">
+                  <option value="ANNUAL">{{ 'exams.sessionType.annual' | translate }}</option>
+                  <option value="TERM">{{ 'exams.sessionType.term' | translate }}</option>
+                  <option value="MONTHLY">{{ 'exams.sessionType.monthly' | translate }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="erp-form-group">
+                <label class="erp-label">{{ 'exams.labelTermCode' | translate }}</label>
+                <select class="erp-select" [(ngModel)]="newExam.termCode">
+                  <option value="TERM_1">{{ 'exams.termCode.term1' | translate }}</option>
+                  <option value="TERM_2">{{ 'exams.termCode.term2' | translate }}</option>
+                  <option value="FINAL">{{ 'exams.termCode.final' | translate }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="erp-form-group">
+                <label class="erp-label">{{ 'exams.labelAssessmentKind' | translate }}</label>
+                <select class="erp-select" [(ngModel)]="newExam.assessmentKind">
+                  <option value="THEORY">{{ 'exams.assessmentKind.theory' | translate }}</option>
+                  <option value="PRACTICAL">{{ 'exams.assessmentKind.practical' | translate }}</option>
+                  <option value="INTERNAL">{{ 'exams.assessmentKind.internal' | translate }}</option>
+                  <option value="COMPOSITE">{{ 'exams.assessmentKind.composite' | translate }}</option>
+                </select>
+              </div>
+            </div>
             <div class="col-md-6">
               <div class="erp-form-group">
                 <label class="erp-label">{{ 'exams.labelMarkingScheme' | translate }}</label>
@@ -560,7 +890,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
               </div>
             </div>
           </div>
-          <div class="erp-form-group">
+          <div class="erp-form-group" *ngIf="examWizardStep === 2">
             <label class="erp-label">{{ 'exams.labelAdvancedRules' | translate }}</label>
             <div class="row g-3">
               <div class="col-md-4">
@@ -581,14 +911,14 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
               </div>
             </div>
           </div>
-          <div class="erp-form-group">
+          <div class="erp-form-group" *ngIf="examWizardStep === 2">
             <label class="erp-label">{{ 'exams.labelAcademicYear' | translate }}</label>
             <select class="erp-select" [(ngModel)]="newExam.academicYearId">
               <option [ngValue]="null">{{ 'exams.selectYear' | translate }}</option>
               <option *ngFor="let year of academicYears" [ngValue]="year.id">{{ year.name }}</option>
             </select>
           </div>
-          <div class="row g-3">
+          <div class="row g-3" *ngIf="examWizardStep === 2">
             <div class="col-md-6">
               <div class="erp-form-group">
                 <label class="erp-label">{{ 'exams.labelStart' | translate }}</label
@@ -602,7 +932,10 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
               </div>
             </div>
           </div>
-          <div class="erp-form-group">
+          <p class="small text-danger mb-0" *ngIf="examWizardStep === 2 && isExamDateRangeInvalid">
+            {{ 'exams.examDateRangeInvalid' | translate }}
+          </p>
+          <div class="erp-form-group" *ngIf="examWizardStep === 3">
             <label class="erp-label">{{ 'exams.labelClassesSections' | translate }}</label>
             <p class="small text-muted">{{ 'exams.classesHelp' | translate }}</p>
             <div *ngFor="let cls of classes" class="mb-2 p-2 rounded-3" style="border: 1px solid var(--clr-border-light); background: var(--clr-surface-muted);">
@@ -619,10 +952,30 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
               </div>
             </div>
           </div>
+          <div class="erp-card p-3" *ngIf="examWizardStep === 4">
+            <h4 class="mb-2">{{ 'exams.reviewTitle' | translate }}</h4>
+            <div class="small text-muted">
+              <div><strong>{{ 'exams.labelExamName' | translate }}:</strong> {{ newExam.name || '-' }}</div>
+              <div><strong>{{ 'exams.labelBoardCode' | translate }}:</strong> {{ newExam.boardCode }}</div>
+              <div><strong>{{ 'exams.labelSessionType' | translate }}:</strong> {{ newExam.sessionType }}</div>
+              <div><strong>{{ 'exams.labelTermCode' | translate }}:</strong> {{ newExam.termCode }}</div>
+              <div><strong>{{ 'exams.labelAssessmentKind' | translate }}:</strong> {{ newExam.assessmentKind }}</div>
+              <div><strong>{{ 'exams.labelAcademicYear' | translate }}:</strong> {{ newExam.academicYearId ?? '-' }}</div>
+              <div><strong>{{ 'exams.labelStart' | translate }}:</strong> {{ newExam.startDate || '-' }}</div>
+              <div><strong>{{ 'exams.labelEnd' | translate }}:</strong> {{ newExam.endDate || '-' }}</div>
+              <div><strong>{{ 'exams.labelClassesSections' | translate }}:</strong> {{ newExam.classIds.length }}</div>
+            </div>
+          </div>
         </div>
         <div class="modal-footer-erp">
           <button type="button" class="btn-outline-erp" (click)="showCreateModal = false">{{ 'exams.cancel' | translate }}</button>
-          <button type="button" class="btn-primary-erp" (click)="createExam()">{{ 'exams.create' | translate }}</button>
+          <button type="button" class="btn-outline-erp" (click)="previousExamWizardStep()" [disabled]="examWizardStep === 1">{{ 'exams.wizardBack' | translate }}</button>
+          <button type="button" class="btn-primary-erp" *ngIf="examWizardStep < 4" (click)="nextExamWizardStep()" [disabled]="!canProceedExamWizardStep">
+            {{ 'exams.wizardNext' | translate }}
+          </button>
+          <button type="button" class="btn-primary-erp" *ngIf="examWizardStep === 4" (click)="saveExamDefinition()">
+            {{ (editExamId == null ? 'exams.create' : 'exams.update') | translate }}
+          </button>
         </div>
       </div>
     </div>
@@ -632,14 +985,50 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
       .exam-card-pick { transition: border-color 0.15s ease, box-shadow 0.15s ease; cursor: pointer; }
       .exam-card-pick--disabled { cursor: not-allowed; opacity: 0.62; pointer-events: none; }
       .exam-card-active { border-color: var(--clr-accent) !important; box-shadow: 0 0 0 1px color-mix(in srgb, var(--clr-accent) 35%, transparent); }
+      .wizard-steps { display: flex; align-items: center; gap: 8px; }
+      .wizard-steps span { width: 28px; height: 28px; border-radius: 999px; border: 1px solid var(--clr-border); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--clr-text-muted); background: var(--clr-surface); }
+      .wizard-steps span.active, .wizard-steps span.done { background: var(--clr-primary); border-color: var(--clr-primary); color: #fff; }
+      .wizard-steps i { flex: 1; height: 1px; background: var(--clr-border-light); }
+      .builder-section { border: 1px solid var(--clr-border-light); border-radius: 10px; padding: 10px; background: var(--clr-surface-muted); }
+      .exam-config-modal { width: min(96vw, 1180px); max-height: 92vh; overflow: auto; }
+      .builder-section-head .erp-label, .builder-field-row .erp-label { font-size: 11px; margin-bottom: 4px; }
+      .builder-actions { flex-wrap: wrap; justify-content: flex-start; }
+      .builder-actions .btn-sm { white-space: nowrap; }
+      .builder-field-row { padding: 8px 6px; border: 1px dashed var(--clr-border-light); border-radius: 8px; background: var(--clr-surface); }
+      .builder-visible-toggle { margin-top: 22px; white-space: nowrap; }
+      .builder-preview-json { min-height: 160px; max-height: 260px; overflow: auto; font-size: 12px; background: var(--clr-surface-muted); }
+      .exams-list-toolbar {
+        display: grid;
+        grid-template-columns: minmax(260px, 1fr) 240px;
+        gap: 12px;
+        align-items: end;
+      }
+      .exams-list-toolbar__search {
+        min-width: 0;
+      }
+      .exams-list-toolbar__filter {
+        justify-self: end;
+        width: 100%;
+        max-width: 240px;
+      }
       @media (max-width: 768px) {
+        .exam-config-modal { width: min(96vw, 960px); }
         .modal-content-erp.modal-lg { width: min(96vw, 960px); margin: 12px auto; max-height: 92vh; overflow: auto; }
+        .builder-visible-toggle { margin-top: 0; }
+        .exams-list-toolbar {
+          grid-template-columns: 1fr;
+        }
+        .exams-list-toolbar__filter {
+          justify-self: stretch;
+          max-width: none;
+        }
       }
     `
   ]
 })
 export class ExamsComponent implements OnInit {
   Math = Math;
+  readonly schedulePaperTypeOptions: string[] = ['THEORY', 'PRACTICAL', 'ORAL', 'PROJECT', 'INTERNAL', 'VIVA'];
   exams: Exam[] = [];
   marks: MarkRecord[] = [];
   classes: SchoolClass[] = [];
@@ -648,6 +1037,9 @@ export class ExamsComponent implements OnInit {
   selectedClassId: number | null = null;
   marksSectionId: number | null = null;
   showCreateModal = false;
+  editExamId: number | null = null;
+  examWizardStep: ExamWizardStep = 1;
+  showConfigModal = false;
   detailTab: ExamDetailTab = 'marks';
   marksSubject = '';
   maxMarks = 100;
@@ -660,6 +1052,10 @@ export class ExamsComponent implements OnInit {
   newExam = {
     name: '',
     examType: '',
+    boardCode: 'CBSE',
+    sessionType: 'ANNUAL',
+    termCode: 'TERM_1',
+    assessmentKind: 'THEORY',
     markingScheme: 'marks',
     maxPapersPerDayPerClass: 0,
     requireRoom: false,
@@ -676,6 +1072,33 @@ export class ExamsComponent implements OnInit {
   parentChildren: Student[] = [];
   examTemplates: ExamTemplate[] = [];
   selectedTemplateId: number | null = null;
+  configAcademicYearId: number | null = null;
+  configSaving = false;
+  configMessage = '';
+  configError = false;
+  showConfigAdvancedJson = false;
+  reportCardSectionsBuilder: ReportCardSectionDraft[] = [];
+  reportCardBuilderSectionErrors: string[] = [];
+  reportCardBuilderFieldErrors: Record<string, string> = {};
+  configFriendly = {
+    gradingScale: 'percentage',
+    passPercent: 40,
+    requireApproval: true,
+    allowTeacherDraft: true,
+    autoPublishResults: false,
+    enableRemarksSuggestion: false,
+    enableRiskPrediction: false,
+    enableTopperTrend: false,
+  };
+  configHistoryRows: ExamModuleConfigHistoryItem[] = [];
+  selectedHistoryLeftVersion: number | null = null;
+  selectedHistoryRightVersion: number | null = null;
+  moduleConfigDraft: Record<ExamModuleConfigKey, string> = {
+    GRADING_SCHEMA: '{\n  "scale": "percentage",\n  "passPercent": 40,\n  "bands": [\n    { "grade": "A+", "min": 90 },\n    { "grade": "A", "min": 80 },\n    { "grade": "B", "min": 70 }\n  ]\n}',
+    REPORT_CARD_SCHEMA: '{\n  "theme": "classic",\n  "sections": ["header", "scholastic", "attendance", "remarks"],\n  "showRank": true,\n  "showAttendance": true\n}',
+    WORKFLOW_SCHEMA: '{\n  "requireApproval": true,\n  "allowTeacherDraft": true,\n  "autoPublishResults": false\n}',
+    AI_SCHEMA: '{\n  "enableRemarksSuggestion": false,\n  "enableRiskPrediction": false,\n  "enableTopperTrend": false\n}'
+  };
   selectedParentChildId: number | null = null;
   parentDetailTab: 'timetable' | 'results' = 'timetable';
 
@@ -706,6 +1129,16 @@ export class ExamsComponent implements OnInit {
   staffExamPageSize = DEFAULT_ERP_PAGE_SIZE;
   staffExamTotal = 0;
   staffExamSearch = '';
+  selectedExamListFilter: ExamListFilterCode = 'UPCOMING';
+  readonly examListFilterOptions: Array<{ code: ExamListFilterCode; labelKey: string }> = [
+    { code: 'UPCOMING', labelKey: 'exams.listFilter.upcoming' },
+    { code: 'ONGOING', labelKey: 'exams.listFilter.ongoing' },
+    { code: 'COMPLETED', labelKey: 'exams.listFilter.completed' },
+    { code: 'APPROVED', labelKey: 'exams.listFilter.approved' },
+    { code: 'FROZEN', labelKey: 'exams.listFilter.frozen' },
+    { code: 'PUBLISHED', labelKey: 'exams.listFilter.published' },
+    { code: 'ALL', labelKey: 'exams.listFilter.all' },
+  ];
   private staffExamSeq = 0;
   private staffExamSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -718,6 +1151,8 @@ export class ExamsComponent implements OnInit {
     private parentService: ParentService,
     private auth: AuthService,
     private uiAccess: UiAccessService,
+    private examsFacade: ExamsFacade,
+    private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef,
     private route: ActivatedRoute
@@ -733,6 +1168,16 @@ export class ExamsComponent implements OnInit {
 
   get canCreateExam(): boolean {
     return this.uiAccess.hasSchoolExamsOfficeWriteAccess();
+  }
+
+  get canConfigureEngine(): boolean {
+    return this.uiAccess.hasSchoolExamsOfficeWriteAccess();
+  }
+
+  get canEditExamMeta(): boolean {
+    if (!this.uiAccess.hasSchoolExamsOfficeWriteAccess() || !this.selectedExam) return false;
+    const state = String(this.selectedExam.workflowState || '').toUpperCase();
+    return state !== 'FROZEN' && state !== 'PUBLISHED';
   }
 
   get canEnterMarks(): boolean {
@@ -753,7 +1198,7 @@ export class ExamsComponent implements OnInit {
   /** Staff: all exams. Parent: exams whose scope includes the selected child’s class/section. */
   get examGridList(): Exam[] {
     const base = this.role !== 'parent' ? this.exams : this.parentFilteredExams;
-    return [...base].sort(compareExamsForGrid);
+    return [...base].filter(ex => this.matchesExamListFilter(ex)).sort(compareExamsForGrid);
   }
 
   get parentFilteredExams(): Exam[] {
@@ -802,6 +1247,35 @@ export class ExamsComponent implements OnInit {
   get subjectSelectOptions(): string[] {
     const rows = this.marksScopeFiltered;
     const set = new Set(rows.map(r => r.subjectName?.trim()).filter((s): s is string => !!s));
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }
+
+  get marksSubjectOptions(): string[] {
+    const set = new Set<string>();
+    for (const item of this.subjectSelectOptions) {
+      if (item.trim()) {
+        set.add(item.trim());
+      }
+    }
+    for (const row of this.marks) {
+      if (this.selectedClassId != null && row.classId !== this.selectedClassId) {
+        continue;
+      }
+      if (row.subjectName?.trim()) {
+        set.add(row.subjectName.trim());
+      }
+    }
+    for (const row of this.scheduleDraft) {
+      if (this.selectedClassId != null && row.classId !== this.selectedClassId) {
+        continue;
+      }
+      if (row.subjectName?.trim()) {
+        set.add(row.subjectName.trim());
+      }
+    }
+    if (this.marksSubject?.trim()) {
+      set.add(this.marksSubject.trim());
+    }
     return [...set].sort((a, b) => a.localeCompare(b));
   }
 
@@ -995,9 +1469,15 @@ export class ExamsComponent implements OnInit {
   }
 
   openCreateModal(): void {
+    this.editExamId = null;
+    this.examWizardStep = 1;
     this.newExam = {
       name: '',
       examType: '',
+      boardCode: 'CBSE',
+      sessionType: 'ANNUAL',
+      termCode: 'TERM_1',
+      assessmentKind: 'THEORY',
       markingScheme: 'marks',
       maxPapersPerDayPerClass: 0,
       requireRoom: false,
@@ -1010,6 +1490,662 @@ export class ExamsComponent implements OnInit {
     this.selectedTemplateId = null;
     this.sectionChoiceByClass = {};
     this.showCreateModal = true;
+  }
+
+  openEditModal(exam: Exam): void {
+    this.editExamId = exam.id;
+    this.examWizardStep = 1;
+    this.newExam = {
+      name: exam.name || '',
+      examType: exam.examType || '',
+      boardCode: exam.boardCode || 'CBSE',
+      sessionType: exam.sessionType || 'ANNUAL',
+      termCode: exam.termCode || 'TERM_1',
+      assessmentKind: exam.assessmentKind || 'THEORY',
+      markingScheme: exam.markingScheme || 'marks',
+      maxPapersPerDayPerClass: Number((exam.gradingConfig?.['examOperations'] as Record<string, unknown> | undefined)?.['maxPapersPerDayPerClass'] || 0),
+      requireRoom: Boolean((exam.gradingConfig?.['examOperations'] as Record<string, unknown> | undefined)?.['requireRoom']),
+      requireInvigilator: Boolean((exam.gradingConfig?.['examOperations'] as Record<string, unknown> | undefined)?.['requireInvigilator']),
+      academicYearId: exam.academicYearId ?? null,
+      startDate: exam.startDate || '',
+      endDate: exam.endDate || '',
+      classIds: [...(exam.classIds || [])]
+    };
+    this.sectionChoiceByClass = {};
+    if (exam.classScopes?.length) {
+      this.newExam.classIds = [...new Set(exam.classScopes.map(s => s.classId))];
+      for (const scope of exam.classScopes) {
+        this.sectionChoiceByClass[scope.classId] = scope.sectionId ?? null;
+      }
+    } else {
+      for (const cid of this.newExam.classIds) {
+        this.sectionChoiceByClass[cid] = null;
+      }
+    }
+    this.showCreateModal = true;
+  }
+
+  openConfigModal(): void {
+    this.configAcademicYearId = this.configAcademicYearId ?? this.academicYears.find(y => y.isCurrent)?.id ?? this.academicYears[0]?.id ?? null;
+    this.configMessage = '';
+    this.configError = false;
+    this.showConfigAdvancedJson = false;
+    this.reportCardBuilderSectionErrors = [];
+    this.reportCardBuilderFieldErrors = {};
+    this.showConfigModal = true;
+    this.hydrateReportCardBuilderFromDraft();
+    this.hydrateFriendlyConfigFromDraft();
+    this.onConfigYearChange();
+  }
+
+  onConfigYearChange(): void {
+    if (this.configAcademicYearId != null) {
+      this.examsFacade.loadConfigs(this.configAcademicYearId).subscribe(draft => {
+        this.moduleConfigDraft = { ...draft };
+        this.hydrateReportCardBuilderFromDraft();
+        this.hydrateFriendlyConfigFromDraft();
+      });
+    }
+    this.loadConfigHistory();
+  }
+
+  saveModuleConfigs(): void {
+    if (this.configAcademicYearId == null) {
+      this.configMessage = this.translate.instant('exams.configYearRequired');
+      this.configError = true;
+      return;
+    }
+    if (!this.validateReportCardBuilder()) {
+      this.configMessage = this.translate.instant('exams.configValidationFixErrors');
+      this.configError = true;
+      return;
+    }
+    this.syncDraftFromReportCardBuilder();
+    this.syncDraftFromFriendlyConfig();
+    for (const key of ['GRADING_SCHEMA', 'REPORT_CARD_SCHEMA', 'WORKFLOW_SCHEMA', 'AI_SCHEMA'] as ExamModuleConfigKey[]) {
+      try {
+        JSON.parse(this.moduleConfigDraft[key] || '{}');
+      } catch {
+        this.configMessage = this.translate.instant('exams.configInvalidJson', { key });
+        this.configError = true;
+        return;
+      }
+    }
+    this.confirmDialog
+      .confirm({
+        title: 'Save exam engine settings?',
+        message: 'This will update grading, report card, workflow, and AI rules for the selected academic year.',
+        details: [
+          `Academic year: ${this.academicYears.find(y => y.id === this.configAcademicYearId)?.name || this.configAcademicYearId}`,
+          'Changes apply to upcoming exam operations and report card generation.',
+          'You can still revise settings later and track version history.',
+        ],
+        confirmLabel: 'Save settings',
+        cancelLabel: 'Review again',
+        variant: 'warning',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        this.configSaving = true;
+        this.configError = false;
+        this.configMessage = '';
+        this.examsFacade.saveConfigs(this.configAcademicYearId as number, this.moduleConfigDraft).subscribe({
+          next: () => {
+            this.configSaving = false;
+            this.configMessage = this.translate.instant('exams.configSaved');
+            this.configError = false;
+            this.loadConfigHistory();
+          },
+          error: () => {
+            this.configSaving = false;
+            this.configMessage = this.translate.instant('exams.configSaveError');
+            this.configError = true;
+          }
+        });
+      });
+  }
+
+  applyBoardPreset(board: 'CBSE' | 'ICSE' | 'STATE'): void {
+    this.confirmDialog
+      .confirm({
+        title: 'Apply board preset?',
+        message: `This will replace current draft settings with the ${board} preset template.`,
+        details: [
+          'Grading bands and report card sections will be auto-updated.',
+          'Only your current draft is replaced. Nothing is saved until you click "Save settings".',
+        ],
+        confirmLabel: 'Apply preset',
+        cancelLabel: 'Keep current draft',
+        variant: 'primary',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        this.moduleConfigDraft = { ...this.examsFacade.applyBoardPreset(board) };
+        this.hydrateReportCardBuilderFromDraft();
+        this.hydrateFriendlyConfigFromDraft();
+      });
+  }
+
+  sectionErrorAt(index: number): string {
+    return this.reportCardBuilderSectionErrors[index] || '';
+  }
+
+  fieldErrorAt(sectionIndex: number, fieldIndex: number): string {
+    return this.reportCardBuilderFieldErrors[`${sectionIndex}:${fieldIndex}`] || '';
+  }
+
+  get reportCardPreviewJson(): string {
+    try {
+      return JSON.stringify(this.buildReportCardSchemaFromBuilder(), null, 2);
+    } catch {
+      return '{}';
+    }
+  }
+
+  get selectedHistoryLeftConfigJson(): string {
+    const row = this.configHistoryRows.find(r => r.versionNo === this.selectedHistoryLeftVersion);
+    return JSON.stringify(row?.config ?? {}, null, 2);
+  }
+
+  get selectedHistoryRightConfigJson(): string {
+    const row = this.configHistoryRows.find(r => r.versionNo === this.selectedHistoryRightVersion);
+    return JSON.stringify(row?.config ?? {}, null, 2);
+  }
+
+  get selectedHistoryDiffSummary(): string[] {
+    const left = this.configHistoryRows.find(r => r.versionNo === this.selectedHistoryLeftVersion)?.config;
+    const right = this.configHistoryRows.find(r => r.versionNo === this.selectedHistoryRightVersion)?.config;
+    if (!left || !right) {
+      return [];
+    }
+    return this.buildHistoryDiffSummary(left, right);
+  }
+
+  get isExamDateRangeInvalid(): boolean {
+    const start = this.parseDateOnly(this.newExam.startDate);
+    const end = this.parseDateOnly(this.newExam.endDate);
+    if (!start || !end) {
+      return false;
+    }
+    return end.getTime() < start.getTime();
+  }
+
+  loadConfigHistory(): void {
+    if (this.configAcademicYearId == null) {
+      this.configHistoryRows = [];
+      this.selectedHistoryLeftVersion = null;
+      this.selectedHistoryRightVersion = null;
+      return;
+    }
+    this.examService.getModuleConfigHistory(this.configAcademicYearId, 'REPORT_CARD_SCHEMA').subscribe(rows => {
+      this.configHistoryRows = [...rows].sort((a, b) => Number(b.versionNo || 0) - Number(a.versionNo || 0));
+      this.selectedHistoryLeftVersion = this.configHistoryRows[0]?.versionNo ?? null;
+      this.selectedHistoryRightVersion = this.configHistoryRows[1]?.versionNo ?? this.configHistoryRows[0]?.versionNo ?? null;
+    });
+  }
+
+  restoreReportCardSchemaFromVersion(versionNo: number): void {
+    if (this.configAcademicYearId == null) {
+      return;
+    }
+    const row = this.configHistoryRows.find(r => r.versionNo === versionNo);
+    if (!row) {
+      return;
+    }
+    this.confirmDialog
+      .confirm({
+        title: `Restore version v${versionNo}?`,
+        message: 'This will replace the current report card schema with the selected historical version.',
+        details: [
+          'Your latest schema draft for this year will be overwritten.',
+          'A new history entry will be created so this action remains traceable.',
+        ],
+        confirmLabel: 'Restore version',
+        cancelLabel: 'Cancel',
+        variant: 'warning',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        this.configSaving = true;
+        this.examService.upsertModuleConfig(
+          'REPORT_CARD_SCHEMA',
+          this.configAcademicYearId as number,
+          row.config,
+          `Restore from version ${versionNo}`
+        ).subscribe({
+          next: () => {
+            this.moduleConfigDraft.REPORT_CARD_SCHEMA = JSON.stringify(row.config, null, 2);
+            this.hydrateReportCardBuilderFromDraft();
+            this.hydrateFriendlyConfigFromDraft();
+            this.configMessage = this.translate.instant('exams.configRestoreSuccess', { versionNo });
+            this.configError = false;
+            this.configSaving = false;
+            this.loadConfigHistory();
+          },
+          error: () => {
+            this.configMessage = this.translate.instant('exams.configSaveError');
+            this.configError = true;
+            this.configSaving = false;
+          }
+        });
+      });
+  }
+
+  get canProceedExamWizardStep(): boolean {
+    if (this.examWizardStep === 1) {
+      return !!this.newExam.name?.trim();
+    }
+    if (this.examWizardStep === 2) {
+      return this.newExam.academicYearId != null && !!this.newExam.startDate && !!this.newExam.endDate && !this.isExamDateRangeInvalid;
+    }
+    if (this.examWizardStep === 3) {
+      return this.newExam.classIds.length > 0;
+    }
+    return true;
+  }
+
+  nextExamWizardStep(): void {
+    if (!this.canProceedExamWizardStep || this.examWizardStep >= 4) return;
+    this.examWizardStep = (this.examWizardStep + 1) as ExamWizardStep;
+  }
+
+  previousExamWizardStep(): void {
+    if (this.examWizardStep <= 1) return;
+    this.examWizardStep = (this.examWizardStep - 1) as ExamWizardStep;
+  }
+
+  toggleConfigAdvancedJson(): void {
+    this.showConfigAdvancedJson = !this.showConfigAdvancedJson;
+  }
+
+  addReportSection(): void {
+    this.reportCardSectionsBuilder = [
+      ...this.reportCardSectionsBuilder,
+      {
+        key: `section_${this.reportCardSectionsBuilder.length + 1}`,
+        title: `Section ${this.reportCardSectionsBuilder.length + 1}`,
+        layout: 'list',
+        fields: [],
+      }
+    ];
+  }
+
+  removeReportSection(index: number): void {
+    const section = this.reportCardSectionsBuilder[index];
+    if (!section) return;
+    this.confirmDialog
+      .confirm({
+        title: 'Remove this report section?',
+        message: 'This section and all fields inside it will be removed from the draft schema.',
+        details: [
+          `Section key: ${section.key || '(empty)'}`,
+          `Section title: ${section.title || '(empty)'}`,
+          `Fields to remove: ${section.fields.length}`,
+        ],
+        confirmLabel: 'Remove section',
+        cancelLabel: 'Keep section',
+        variant: 'danger',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        this.reportCardSectionsBuilder = this.reportCardSectionsBuilder.filter((_, i) => i !== index);
+      });
+  }
+
+  moveReportSection(index: number, delta: number): void {
+    const nextIndex = index + delta;
+    if (nextIndex < 0 || nextIndex >= this.reportCardSectionsBuilder.length) return;
+    const copy = [...this.reportCardSectionsBuilder];
+    const [row] = copy.splice(index, 1);
+    copy.splice(nextIndex, 0, row);
+    this.reportCardSectionsBuilder = copy;
+  }
+
+  addReportField(sectionIndex: number): void {
+    const section = this.reportCardSectionsBuilder[sectionIndex];
+    if (!section) return;
+    const field: ReportCardFieldDraft = {
+      key: 'newField',
+      label: 'New field',
+      format: '',
+      visible: true,
+      order: section.fields.length + 1,
+    };
+    const copy = [...this.reportCardSectionsBuilder];
+    copy[sectionIndex] = { ...section, fields: [...section.fields, field] };
+    this.reportCardSectionsBuilder = copy;
+  }
+
+  removeReportField(sectionIndex: number, fieldIndex: number): void {
+    const section = this.reportCardSectionsBuilder[sectionIndex];
+    if (!section) return;
+    const field = section.fields[fieldIndex];
+    if (!field) return;
+    this.confirmDialog
+      .confirm({
+        title: 'Remove this report field?',
+        message: 'This field will be removed from the current section draft.',
+        details: [
+          `Section: ${section.title || section.key || '(untitled)'}`,
+          `Field key: ${field.key || '(empty)'}`,
+          `Field label: ${field.label || '(empty)'}`,
+        ],
+        confirmLabel: 'Remove field',
+        cancelLabel: 'Keep field',
+        variant: 'danger',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        const copy = [...this.reportCardSectionsBuilder];
+        copy[sectionIndex] = { ...section, fields: section.fields.filter((_, i) => i !== fieldIndex) };
+        this.reportCardSectionsBuilder = copy;
+      });
+  }
+
+  private hydrateReportCardBuilderFromDraft(): void {
+    try {
+      const parsed = JSON.parse(this.moduleConfigDraft.REPORT_CARD_SCHEMA || '{}') as Record<string, unknown>;
+      const rawSections = Array.isArray(parsed['sections']) ? parsed['sections'] : [];
+      const built: ReportCardSectionDraft[] = rawSections.map((row, idx) => {
+        if (typeof row === 'string') {
+          return {
+            key: row,
+            title: this.titleCaseFromKey(row),
+            layout: this.inferLayoutFromKey(row),
+            fields: [],
+          };
+        }
+        if (row && typeof row === 'object') {
+          const obj = row as Record<string, unknown>;
+          const rawFields = Array.isArray(obj['fields']) ? obj['fields'] : Array.isArray(obj['columns']) ? obj['columns'] : [];
+          const fields: ReportCardFieldDraft[] = rawFields
+            .filter(v => v && typeof v === 'object')
+            .map((v, fIdx) => {
+              const f = v as Record<string, unknown>;
+              return {
+                key: String(f['key'] ?? `field_${fIdx + 1}`),
+                label: String(f['label'] ?? this.titleCaseFromKey(String(f['key'] ?? `field_${fIdx + 1}`))),
+                format: String(f['format'] ?? ''),
+                visible: f['visible'] !== false,
+                order: Number(f['order'] ?? fIdx + 1),
+              };
+            });
+          return {
+            key: String(obj['key'] ?? `section_${idx + 1}`),
+            title: String(obj['title'] ?? this.titleCaseFromKey(String(obj['key'] ?? `section_${idx + 1}`))),
+            layout: this.normalizeLayout(obj['layout']),
+            fields,
+          };
+        }
+        return {
+          key: `section_${idx + 1}`,
+          title: `Section ${idx + 1}`,
+          layout: 'list',
+          fields: [],
+        };
+      });
+      this.reportCardSectionsBuilder = built.length ? built : this.defaultReportCardBuilderSections();
+    } catch {
+      this.reportCardSectionsBuilder = this.defaultReportCardBuilderSections();
+    }
+  }
+
+  private syncDraftFromReportCardBuilder(): void {
+    try {
+      const existing = JSON.parse(this.moduleConfigDraft.REPORT_CARD_SCHEMA || '{}') as Record<string, unknown>;
+      const sections = this.buildReportCardSchemaFromBuilder().sections as unknown[];
+      const merged = {
+        ...existing,
+        sections,
+      };
+      this.moduleConfigDraft.REPORT_CARD_SCHEMA = JSON.stringify(merged, null, 2);
+    } catch {
+      // keep existing draft as is
+    }
+  }
+
+  private hydrateFriendlyConfigFromDraft(): void {
+    const grading = this.parseDraftConfig(this.moduleConfigDraft.GRADING_SCHEMA);
+    const workflow = this.parseDraftConfig(this.moduleConfigDraft.WORKFLOW_SCHEMA);
+    const ai = this.parseDraftConfig(this.moduleConfigDraft.AI_SCHEMA);
+    this.configFriendly = {
+      gradingScale: String(grading['scale'] ?? this.configFriendly.gradingScale ?? 'percentage'),
+      passPercent: Number(grading['passPercent'] ?? this.configFriendly.passPercent ?? 40),
+      requireApproval: !!workflow['requireApproval'],
+      allowTeacherDraft: !!workflow['allowTeacherDraft'],
+      autoPublishResults: !!workflow['autoPublishResults'],
+      enableRemarksSuggestion: !!ai['enableRemarksSuggestion'],
+      enableRiskPrediction: !!ai['enableRiskPrediction'],
+      enableTopperTrend: !!ai['enableTopperTrend'],
+    };
+  }
+
+  private syncDraftFromFriendlyConfig(): void {
+    const grading = this.parseDraftConfig(this.moduleConfigDraft.GRADING_SCHEMA);
+    const workflow = this.parseDraftConfig(this.moduleConfigDraft.WORKFLOW_SCHEMA);
+    const ai = this.parseDraftConfig(this.moduleConfigDraft.AI_SCHEMA);
+
+    grading['scale'] = this.configFriendly.gradingScale || 'percentage';
+    grading['passPercent'] = Number.isFinite(Number(this.configFriendly.passPercent))
+      ? Math.max(0, Math.min(100, Number(this.configFriendly.passPercent)))
+      : 40;
+
+    workflow['requireApproval'] = !!this.configFriendly.requireApproval;
+    workflow['allowTeacherDraft'] = !!this.configFriendly.allowTeacherDraft;
+    workflow['autoPublishResults'] = !!this.configFriendly.autoPublishResults;
+
+    ai['enableRemarksSuggestion'] = !!this.configFriendly.enableRemarksSuggestion;
+    ai['enableRiskPrediction'] = !!this.configFriendly.enableRiskPrediction;
+    ai['enableTopperTrend'] = !!this.configFriendly.enableTopperTrend;
+
+    this.moduleConfigDraft.GRADING_SCHEMA = JSON.stringify(grading, null, 2);
+    this.moduleConfigDraft.WORKFLOW_SCHEMA = JSON.stringify(workflow, null, 2);
+    this.moduleConfigDraft.AI_SCHEMA = JSON.stringify(ai, null, 2);
+  }
+
+  private parseDraftConfig(raw: string): Record<string, unknown> {
+    try {
+      const parsed = JSON.parse(raw || '{}');
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+      return {};
+    } catch {
+      return {};
+    }
+  }
+
+  private buildReportCardSchemaFromBuilder(): Record<string, unknown> {
+    const sections = this.reportCardSectionsBuilder.map(s => {
+      const fields = [...s.fields]
+        .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
+        .map(f => ({
+          key: f.key.trim(),
+          label: f.label.trim(),
+          format: f.format?.trim() || undefined,
+          visible: f.visible,
+          order: Number(f.order || 0),
+        }));
+      return {
+        key: s.key.trim(),
+        title: s.title.trim(),
+        layout: s.layout,
+        ...(s.layout === 'table' ? { columns: fields } : { fields }),
+      };
+    });
+    return { sections };
+  }
+
+  private validateReportCardBuilder(): boolean {
+    const sectionErrors: string[] = [];
+    const fieldErrors: Record<string, string> = {};
+    let valid = true;
+
+    if (!this.reportCardSectionsBuilder.length) {
+      this.reportCardBuilderSectionErrors = [this.translate.instant('exams.configValidationSectionRequired')];
+      this.reportCardBuilderFieldErrors = {};
+      return false;
+    }
+
+    this.reportCardSectionsBuilder.forEach((section, sIdx) => {
+      const secErr: string[] = [];
+      if (!section.key?.trim()) {
+        secErr.push(this.translate.instant('exams.configValidationSectionKeyRequired'));
+      }
+      if (!section.title?.trim()) {
+        secErr.push(this.translate.instant('exams.configValidationSectionTitleRequired'));
+      }
+      sectionErrors[sIdx] = secErr.join(' ');
+      if (secErr.length) {
+        valid = false;
+      }
+
+      section.fields.forEach((field, fIdx) => {
+        const errs: string[] = [];
+        if (!field.key?.trim()) errs.push(this.translate.instant('exams.configValidationFieldKeyRequired'));
+        if (!field.label?.trim()) errs.push(this.translate.instant('exams.configValidationFieldLabelRequired'));
+        if (!Number.isFinite(Number(field.order)) || Number(field.order) <= 0) {
+          errs.push(this.translate.instant('exams.configValidationFieldOrderInvalid'));
+        }
+        const k = `${sIdx}:${fIdx}`;
+        if (errs.length) {
+          fieldErrors[k] = errs.join(' ');
+          valid = false;
+        }
+      });
+    });
+
+    this.reportCardBuilderSectionErrors = sectionErrors;
+    this.reportCardBuilderFieldErrors = fieldErrors;
+    return valid;
+  }
+
+  private defaultReportCardBuilderSections(): ReportCardSectionDraft[] {
+    return [
+      { key: 'header', title: 'Header', layout: 'list', fields: [] },
+      { key: 'scholastic', title: 'Scholastic', layout: 'table', fields: [] },
+      { key: 'totals', title: 'Totals', layout: 'badges', fields: [] },
+      { key: 'remarks', title: 'Remarks', layout: 'remarks', fields: [] },
+    ];
+  }
+
+  private inferLayoutFromKey(key: string): ReportSectionLayout {
+    const k = String(key || '').trim().toLowerCase();
+    if (k.includes('remark')) return 'remarks';
+    if (k.includes('subject') || k.includes('scholastic')) return 'table';
+    if (k.includes('total') || k.includes('summary')) return 'badges';
+    return 'list';
+  }
+
+  private normalizeLayout(raw: unknown): ReportSectionLayout {
+    const l = String(raw ?? '').trim().toLowerCase();
+    if (l === 'table' || l === 'badges' || l === 'remarks' || l === 'list') return l;
+    return 'list';
+  }
+
+  private titleCaseFromKey(key: string): string {
+    return String(key || '')
+      .replace(/[_-]+/g, ' ')
+      .trim()
+      .replace(/\b\w/g, ch => ch.toUpperCase());
+  }
+
+  private parseDateOnly(value: string): Date | null {
+    if (!value || typeof value !== 'string') {
+      return null;
+    }
+    const parsed = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+    return parsed;
+  }
+
+  private buildHistoryDiffSummary(
+    leftConfig: Record<string, unknown>,
+    rightConfig: Record<string, unknown>
+  ): string[] {
+    const summary: string[] = [];
+    const leftSections = this.extractSchemaSections(leftConfig);
+    const rightSections = this.extractSchemaSections(rightConfig);
+
+    if (leftSections.length !== rightSections.length) {
+      summary.push(
+        this.translate.instant('exams.configHistoryDiffSectionsCount', {
+          left: leftSections.length,
+          right: rightSections.length
+        })
+      );
+    }
+
+    const leftMap = new Map(leftSections.map(section => [section.key, section]));
+    const rightMap = new Map(rightSections.map(section => [section.key, section]));
+    const added = rightSections.filter(section => !leftMap.has(section.key)).map(section => section.key);
+    const removed = leftSections.filter(section => !rightMap.has(section.key)).map(section => section.key);
+    if (added.length) {
+      summary.push(this.translate.instant('exams.configHistoryDiffSectionsAdded', { value: added.join(', ') }));
+    }
+    if (removed.length) {
+      summary.push(this.translate.instant('exams.configHistoryDiffSectionsRemoved', { value: removed.join(', ') }));
+    }
+
+    const changedSections: string[] = [];
+    const sharedKeys = leftSections.map(section => section.key).filter(key => rightMap.has(key));
+    for (const key of sharedKeys) {
+      const leftSection = leftMap.get(key);
+      const rightSection = rightMap.get(key);
+      if (!leftSection || !rightSection) {
+        continue;
+      }
+      const changedTitle = leftSection.title !== rightSection.title;
+      const changedLayout = leftSection.layout !== rightSection.layout;
+      const changedFields = leftSection.fields.length !== rightSection.fields.length;
+      if (changedTitle || changedLayout || changedFields) {
+        changedSections.push(key);
+      }
+    }
+    if (changedSections.length) {
+      summary.push(this.translate.instant('exams.configHistoryDiffSectionsChanged', { value: changedSections.join(', ') }));
+    }
+
+    const leftTheme = String(leftConfig['theme'] ?? '');
+    const rightTheme = String(rightConfig['theme'] ?? '');
+    if (leftTheme !== rightTheme) {
+      summary.push(this.translate.instant('exams.configHistoryDiffTheme', { left: leftTheme || '-', right: rightTheme || '-' }));
+    }
+
+    if (!summary.length) {
+      summary.push(this.translate.instant('exams.configHistoryDiffNoMajorChanges'));
+    }
+    return summary;
+  }
+
+  private extractSchemaSections(config: Record<string, unknown>): Array<{ key: string; title: string; layout: string; fields: string[] }> {
+    const rawSections = Array.isArray(config['sections']) ? config['sections'] : [];
+    return rawSections.map((entry, idx) => {
+      if (typeof entry === 'string') {
+        return { key: entry, title: entry, layout: 'list', fields: [] };
+      }
+      if (entry && typeof entry === 'object') {
+        const obj = entry as Record<string, unknown>;
+        const fields = Array.isArray(obj['fields'])
+          ? obj['fields']
+          : Array.isArray(obj['columns'])
+            ? obj['columns']
+            : [];
+        const fieldKeys = fields
+          .filter(field => field && typeof field === 'object')
+          .map(field => String((field as Record<string, unknown>)['key'] ?? ''))
+          .filter(Boolean);
+        return {
+          key: String(obj['key'] ?? `section_${idx + 1}`),
+          title: String(obj['title'] ?? ''),
+          layout: String(obj['layout'] ?? 'list'),
+          fields: fieldKeys
+        };
+      }
+      return { key: `section_${idx + 1}`, title: '', layout: 'list', fields: [] };
+    });
   }
 
   selectExam(exam: Exam, parentInitialTab: 'timetable' | 'results' = 'timetable'): void {
@@ -1121,6 +2257,52 @@ export class ExamsComponent implements OnInit {
     }
     const parts = t.split(':');
     return parts.length >= 2 ? `${parts[0]}:${parts[1]}` : t;
+  }
+
+  scheduleSubjectOptions(row: ExamScheduleSlot): string[] {
+    const set = new Set<string>();
+    const classId = row.classId ?? null;
+    for (const scoped of this.marksScopeRows) {
+      if (classId != null && scoped.classId !== classId) {
+        continue;
+      }
+      if (scoped.subjectName?.trim()) {
+        set.add(scoped.subjectName.trim());
+      }
+    }
+    for (const mark of this.marks) {
+      if (classId != null && mark.classId !== classId) {
+        continue;
+      }
+      if (mark.subjectName?.trim()) {
+        set.add(mark.subjectName.trim());
+      }
+    }
+    for (const slot of this.scheduleDraft) {
+      if (classId != null && slot.classId !== classId) {
+        continue;
+      }
+      if (slot.subjectName?.trim()) {
+        set.add(slot.subjectName.trim());
+      }
+    }
+    if (row.subjectName?.trim()) {
+      set.add(row.subjectName.trim());
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }
+
+  schedulePaperTypeOptionsForRow(row: ExamScheduleSlot): string[] {
+    const set = new Set(this.schedulePaperTypeOptions);
+    for (const slot of this.scheduleDraft) {
+      if (slot.paperType?.trim()) {
+        set.add(slot.paperType.trim().toUpperCase());
+      }
+    }
+    if (row.paperType?.trim()) {
+      set.add(row.paperType.trim().toUpperCase());
+    }
+    return [...set];
   }
 
   sectionName(classId: number | undefined, sectionId: number): string {
@@ -1241,8 +2423,25 @@ export class ExamsComponent implements OnInit {
     if (gi < 0 || gi >= this.scheduleDraft.length) {
       return;
     }
-    this.scheduleDraft.splice(gi, 1);
-    this.rebuildSchedulePaging();
+    const row = this.scheduleDraft[gi];
+    this.confirmDialog
+      .confirm({
+        title: 'Remove this timetable row?',
+        message: 'This row will be removed from the current timetable draft.',
+        details: [
+          `Date: ${row.examDate || '-'}`,
+          `Subject: ${row.subjectName || '-'}`,
+          `Time: ${this.formatSlotTime(row.startTime)} - ${this.formatSlotTime(row.endTime)}`,
+        ],
+        confirmLabel: 'Remove row',
+        cancelLabel: 'Keep row',
+        variant: 'danger',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        this.scheduleDraft.splice(gi, 1);
+        this.rebuildSchedulePaging();
+      });
   }
 
   saveSchedule(): void {
@@ -1320,42 +2519,58 @@ export class ExamsComponent implements OnInit {
         return;
       }
     }
-    this.scheduleSaving = true;
-    const payload = this.scheduleDraft.map(({ classId, sectionId, subjectName, paperType, invigilatorName, examDate, startTime, endTime, room, notes }) => ({
-      classId: classId as number,
-      sectionId: sectionId ?? null,
-      subjectName,
-      paperType: paperType?.trim() || undefined,
-      invigilatorName: invigilatorName?.trim() || undefined,
-      examDate,
-      startTime,
-      endTime,
-      room,
-      notes
-    }));
-    this.examService.replaceSchedule(this.selectedExam.id, payload).subscribe({
-      next: rows => {
-        this.scheduleDraft = rows.map(r => ({ ...r, sectionId: r.sectionId ?? null }));
-        this.selectedExam!.scheduleSlots = [...rows];
-        this.scheduleSaving = false;
-        this.scheduleUiMessage = this.translate.instant('exams.timetableSaved');
-        this.scheduleUiError = false;
-        this.schedulePageIndex = 0;
-        this.rebuildSchedulePaging();
-      },
-      error: (err: unknown) => {
-        this.scheduleSaving = false;
-        const http = err as { error?: { message?: string }; message?: string };
-        const msg =
-          err instanceof Error
-            ? err.message
-            : (http?.error?.message ?? http?.message ?? this.translate.instant('exams.saveFailed'));
-        this.scheduleUiMessage =
-          msg +
-          (String(msg).toLowerCase().includes('network') ? '' : this.translate.instant('exams.scheduleSaveNetwork'));
-        this.scheduleUiError = true;
-      }
-    });
+    this.confirmDialog
+      .confirm({
+        title: 'Publish this timetable draft?',
+        message: 'This will replace the existing timetable rows for this exam with the current grid.',
+        details: [
+          `Exam: ${this.selectedExam.name || 'Selected exam'}`,
+          `Rows to save: ${this.scheduleDraft.length}`,
+          'Previous rows for this exam are replaced to keep one final timetable version.',
+        ],
+        confirmLabel: 'Save timetable',
+        cancelLabel: 'Continue editing',
+        variant: 'warning',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        this.scheduleSaving = true;
+        const payload = this.scheduleDraft.map(({ classId, sectionId, subjectName, paperType, invigilatorName, examDate, startTime, endTime, room, notes }) => ({
+          classId: classId as number,
+          sectionId: sectionId ?? null,
+          subjectName,
+          paperType: paperType?.trim() || undefined,
+          invigilatorName: invigilatorName?.trim() || undefined,
+          examDate,
+          startTime,
+          endTime,
+          room,
+          notes
+        }));
+        this.examService.replaceSchedule(this.selectedExam!.id, payload).subscribe({
+          next: rows => {
+            this.scheduleDraft = rows.map(r => ({ ...r, sectionId: r.sectionId ?? null }));
+            this.selectedExam!.scheduleSlots = [...rows];
+            this.scheduleSaving = false;
+            this.scheduleUiMessage = this.translate.instant('exams.timetableSaved');
+            this.scheduleUiError = false;
+            this.schedulePageIndex = 0;
+            this.rebuildSchedulePaging();
+          },
+          error: (err: unknown) => {
+            this.scheduleSaving = false;
+            const http = err as { error?: { message?: string }; message?: string };
+            const msg =
+              err instanceof Error
+                ? err.message
+                : (http?.error?.message ?? http?.message ?? this.translate.instant('exams.saveFailed'));
+            this.scheduleUiMessage =
+              msg +
+              (String(msg).toLowerCase().includes('network') ? '' : this.translate.instant('exams.scheduleSaveNetwork'));
+            this.scheduleUiError = true;
+          }
+        });
+      });
   }
 
   toggleClassSelection(classId: number): void {
@@ -1368,7 +2583,7 @@ export class ExamsComponent implements OnInit {
     this.sectionChoiceByClass[classId] = null;
   }
 
-  createExam(): void {
+  saveExamDefinition(): void {
     if (!this.newExam.name?.trim() || this.newExam.academicYearId == null || !this.newExam.classIds.length) return;
     const classScopes: ExamClassScope[] = this.newExam.classIds.map(cid => ({
       classId: cid,
@@ -1378,6 +2593,10 @@ export class ExamsComponent implements OnInit {
       id: 0,
       name: this.newExam.name.trim(),
       examType: this.newExam.examType?.trim() || 'custom',
+      boardCode: this.newExam.boardCode?.trim() || 'CBSE',
+      sessionType: this.newExam.sessionType?.trim() || 'ANNUAL',
+      termCode: this.newExam.termCode?.trim() || 'TERM_1',
+      assessmentKind: this.newExam.assessmentKind?.trim() || 'THEORY',
       markingScheme: this.newExam.markingScheme || 'marks',
       gradingConfig: {
         scheme: this.newExam.markingScheme || 'marks',
@@ -1396,34 +2615,54 @@ export class ExamsComponent implements OnInit {
       workflowState: this.role === 'teacher' ? 'PENDING_APPROVAL' : 'APPROVED',
       tenantId: ''
     };
-    this.examService.addExam(exam, classScopes).subscribe(createdExam => {
-      this.showCreateModal = false;
-      if (this.staffUsesServerPaging) {
-        this.staffExamPageIndex = 0;
-        const cid = createdExam.id;
-        const seq = ++this.staffExamSeq;
-        this.examService
-          .getExamsPage({
-            page: 0,
-            size: this.staffExamPageSize,
-            q: this.staffExamSearch.trim() || undefined,
-          })
-          .subscribe(p => {
-            if (seq !== this.staffExamSeq) {
-              return;
-            }
-            this.exams = p.content;
-            this.staffExamTotal = p.totalElements;
-            this.staffExamPageIndex = p.page;
-            this.staffExamPageSize = p.size;
-            this.selectExam(this.exams.find(e => e.id === cid) ?? createdExam);
-            this.cdr.markForCheck();
-          });
-        return;
-      }
-      this.exams = [createdExam, ...this.exams];
-      this.selectExam(createdExam);
-    });
+    this.confirmDialog
+      .confirm({
+        title: this.editExamId == null ? 'Create this exam?' : 'Update this exam setup?',
+        message: 'Please verify the exam name, date range, and class scope before continuing.',
+        details: [
+          `Exam: ${exam.name}`,
+          `Classes selected: ${classScopes.length}`,
+          this.editExamId == null ? 'A new exam record will be created.' : 'Existing exam setup will be updated for selected classes.',
+        ],
+        confirmLabel: this.editExamId == null ? 'Create exam' : 'Update exam',
+        cancelLabel: 'Review details',
+        variant: 'primary',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        const save$ = this.editExamId == null
+          ? this.examService.addExam(exam, classScopes)
+          : this.examService.updateExam(this.editExamId, exam, classScopes);
+        save$.subscribe(createdExam => {
+          this.showCreateModal = false;
+          this.editExamId = null;
+          if (this.staffUsesServerPaging) {
+            this.staffExamPageIndex = 0;
+            const cid = createdExam.id;
+            const seq = ++this.staffExamSeq;
+            this.examService
+              .getExamsPage({
+                page: 0,
+                size: this.staffExamPageSize,
+                q: this.staffExamSearch.trim() || undefined,
+              })
+              .subscribe(p => {
+                if (seq !== this.staffExamSeq) {
+                  return;
+                }
+                this.exams = p.content;
+                this.staffExamTotal = p.totalElements;
+                this.staffExamPageIndex = p.page;
+                this.staffExamPageSize = p.size;
+                this.selectExam(this.exams.find(e => e.id === cid) ?? createdExam);
+                this.cdr.markForCheck();
+              });
+            return;
+          }
+          this.exams = [createdExam, ...this.exams];
+          this.selectExam(createdExam);
+        });
+      });
   }
 
   saveMarks(): void {
@@ -1464,20 +2703,37 @@ export class ExamsComponent implements OnInit {
       })
       .filter((m): m is MarkRecord => !!m);
     if (!payload.length) return;
-    this.marksSaving = true;
-    this.examService.saveMarks(this.selectedExam.id, payload).subscribe({
-      next: savedMarks => {
-        this.marksSaving = false;
-        this.marks = [...this.marks.filter(m => !(m.subjectName === this.marksSubject && m.classId === classId)), ...savedMarks];
-        this.marksByStudent = {};
-        this.rebuildRecordedPaging();
-        this.rebuildParentResultsPaging();
-        this.rebuildEntryPaging();
-      },
-      error: () => {
-        this.marksSaving = false;
-      }
-    });
+    this.confirmDialog
+      .confirm({
+        title: 'Save marks now?',
+        message: 'This will update marks for this subject and class, replacing earlier values for the same student entries.',
+        details: [
+          `Exam: ${this.selectedExam.name || 'Selected exam'}`,
+          `Class: ${this.classes.find(c => c.id === classId)?.name || classId}`,
+          `Subject: ${this.marksSubject}`,
+          `Records to save: ${payload.length}`,
+        ],
+        confirmLabel: 'Save marks',
+        cancelLabel: 'Check entries',
+        variant: 'warning',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        this.marksSaving = true;
+        this.examService.saveMarks(this.selectedExam!.id, payload).subscribe({
+          next: savedMarks => {
+            this.marksSaving = false;
+            this.marks = [...this.marks.filter(m => !(m.subjectName === this.marksSubject && m.classId === classId)), ...savedMarks];
+            this.marksByStudent = {};
+            this.rebuildRecordedPaging();
+            this.rebuildParentResultsPaging();
+            this.rebuildEntryPaging();
+          },
+          error: () => {
+            this.marksSaving = false;
+          }
+        });
+      });
   }
 
   private afterMarksLoaded(): void {
@@ -1618,6 +2874,10 @@ export class ExamsComponent implements OnInit {
     return t === tKey ? key : t;
   }
 
+  isFrozenWorkflow(state: string | undefined): boolean {
+    return (state || '').toUpperCase() === 'FROZEN';
+  }
+
   canSubmitForApproval(exam: Exam): boolean {
     if (!this.uiAccess.hasExamStaffReadAccess()) return false;
     const s = (exam.workflowState || '').toUpperCase();
@@ -1637,22 +2897,84 @@ export class ExamsComponent implements OnInit {
 
   submitSelectedExamForApproval(): void {
     if (!this.selectedExam) return;
-    this.examService.submitForApproval(this.selectedExam.id).subscribe(ex => this.patchSelectedExam(ex));
+    this.confirmDialog
+      .confirm({
+        title: 'Send exam for approval?',
+        message: 'This sends the exam setup to the exam office for final review.',
+        details: [
+          `Exam: ${this.selectedExam.name}`,
+          'After submission, workflow state changes to Pending Approval.',
+        ],
+        confirmLabel: 'Submit for approval',
+        cancelLabel: 'Not now',
+        variant: 'primary',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        this.examService.submitForApproval(this.selectedExam!.id).subscribe(ex => this.patchSelectedExam(ex));
+      });
   }
 
   approveSelectedExam(publishNow: boolean): void {
     if (!this.selectedExam) return;
-    this.examService.approveExam(this.selectedExam.id, publishNow).subscribe(ex => this.patchSelectedExam(ex));
+    this.confirmDialog
+      .confirm({
+        title: publishNow ? 'Approve and publish this exam?' : 'Approve this exam?',
+        message: publishNow
+          ? 'The exam becomes approved and immediately available for publishing workflows.'
+          : 'The exam will move to Approved state and can be published later.',
+        details: [
+          `Exam: ${this.selectedExam.name}`,
+          `Current state: ${this.examWorkflowLabel(this.selectedExam.workflowState)}`,
+        ],
+        confirmLabel: publishNow ? 'Approve & publish' : 'Approve exam',
+        cancelLabel: 'Cancel',
+        variant: 'warning',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        this.examService.approveExam(this.selectedExam!.id, publishNow).subscribe(ex => this.patchSelectedExam(ex));
+      });
   }
 
   rejectSelectedExam(): void {
     if (!this.selectedExam) return;
-    this.examService.rejectExam(this.selectedExam.id).subscribe(ex => this.patchSelectedExam(ex));
+    this.confirmDialog
+      .confirm({
+        title: 'Reject this exam submission?',
+        message: 'This sends the exam back for corrections before approval.',
+        details: [
+          `Exam: ${this.selectedExam.name}`,
+          'Workflow state changes to Rejected.',
+        ],
+        confirmLabel: 'Reject submission',
+        cancelLabel: 'Keep pending',
+        variant: 'danger',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        this.examService.rejectExam(this.selectedExam!.id).subscribe(ex => this.patchSelectedExam(ex));
+      });
   }
 
   freezeSelectedExam(): void {
     if (!this.selectedExam) return;
-    this.examService.freezeExam(this.selectedExam.id).subscribe(ex => this.patchSelectedExam(ex));
+    this.confirmDialog
+      .confirm({
+        title: 'Freeze this exam?',
+        message: 'Freezing locks workflow updates and prevents further operational changes.',
+        details: [
+          `Exam: ${this.selectedExam.name}`,
+          'Use freeze only after all marks and timetable updates are complete.',
+        ],
+        confirmLabel: 'Freeze exam',
+        cancelLabel: 'Keep editable',
+        variant: 'danger',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        this.examService.freezeExam(this.selectedExam!.id).subscribe(ex => this.patchSelectedExam(ex));
+      });
   }
 
   private patchSelectedExam(next: Exam): void {
@@ -1665,6 +2987,7 @@ export class ExamsComponent implements OnInit {
     const tpl = this.examTemplates.find(t => t.id === this.selectedTemplateId);
     if (!tpl) return;
     this.newExam.examType = tpl.boardType?.toLowerCase() || this.newExam.examType;
+    this.newExam.boardCode = tpl.boardType?.toUpperCase() || this.newExam.boardCode;
     this.newExam.markingScheme = tpl.defaultMarkingScheme || this.newExam.markingScheme;
     const ops = (tpl.rules as any)?.examOperations;
     if (ops) {
@@ -1720,6 +3043,7 @@ export class ExamsComponent implements OnInit {
         page: this.staffExamPageIndex,
         size: this.staffExamPageSize,
         q: this.staffExamSearch.trim() || undefined,
+        status: this.selectedExamListFilterStatusParam(),
       })
       .subscribe(p => {
         if (seq !== this.staffExamSeq) {
@@ -1754,6 +3078,15 @@ export class ExamsComponent implements OnInit {
     }, 350);
   }
 
+  onStaffExamFilterChange(): void {
+    this.staffExamPageIndex = 0;
+    if (this.staffUsesServerPaging) {
+      this.fetchStaffExamsPage();
+      return;
+    }
+    this.clearSelectionIfNotVisible();
+  }
+
   onStaffExamPageIndexChange(idx: number): void {
     this.staffExamPageIndex = idx;
     this.fetchStaffExamsPage();
@@ -1782,6 +3115,7 @@ export class ExamsComponent implements OnInit {
         }
         this.exams = exams;
         this.clearParentSelectionIfExamInvisible();
+        this.clearSelectionIfNotVisible();
         if (this.selectedExam) {
           const sid = this.selectedExam.id;
           const next = exams.find(e => e.id === sid);
@@ -1800,12 +3134,41 @@ export class ExamsComponent implements OnInit {
     }
     this.examService.getExams().subscribe(exams => {
       this.exams = exams;
+      this.clearSelectionIfNotVisible();
       if (this.selectedExam) {
         const sid = this.selectedExam.id;
         const next = exams.find(e => e.id === sid);
         if (next) this.selectExam(next);
       }
     });
+  }
+
+  private selectedExamListFilterStatusParam(): string | undefined {
+    return this.selectedExamListFilter === 'ALL' ? undefined : this.selectedExamListFilter.toLowerCase();
+  }
+
+  private matchesExamListFilter(exam: Exam): boolean {
+    switch (this.selectedExamListFilter) {
+      case 'UPCOMING':
+      case 'ONGOING':
+      case 'COMPLETED':
+        return (exam.status || '').toUpperCase() === this.selectedExamListFilter;
+      case 'APPROVED':
+      case 'FROZEN':
+      case 'PUBLISHED':
+        return (exam.workflowState || '').toUpperCase() === this.selectedExamListFilter;
+      default:
+        return true;
+    }
+  }
+
+  private clearSelectionIfNotVisible(): void {
+    if (!this.selectedExam) {
+      return;
+    }
+    if (!this.examGridList.some(e => e.id === this.selectedExam!.id)) {
+      this.selectedExam = null;
+    }
   }
 
   private loadReferenceData(): void {

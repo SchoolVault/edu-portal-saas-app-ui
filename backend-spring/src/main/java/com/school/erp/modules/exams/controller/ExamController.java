@@ -2,6 +2,7 @@ package com.school.erp.modules.exams.controller;
 
 import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.common.dto.PageResponse;
+import com.school.erp.modules.exams.dto.ExamConfigDTOs;
 import com.school.erp.modules.exams.dto.ExamDTOs;
 import com.school.erp.modules.exams.dto.ExamScopeDtos;
 import com.school.erp.modules.exams.service.ExamService;
@@ -48,11 +49,46 @@ public class ExamController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createExam(req)));
     }
 
+    @PutMapping("/{id}")
+    @PreAuthorize(RbacSpel.EXAM_OFFICE_WRITE)
+    @Operation(summary = "Update exam metadata", description = "Updates exam definition, partition fields, timeline, and scoped audience.")
+    public ResponseEntity<ApiResponse<ExamDTOs.ExamResponse>> update(
+            @PathVariable Long id,
+            @Valid @RequestBody ExamDTOs.CreateExamRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.updateExam(id, req)));
+    }
+
     @GetMapping("/templates")
     @PreAuthorize(RbacSpel.EXAM_STAFF_READ)
     @Operation(summary = "List exam templates")
     public ResponseEntity<ApiResponse<List<ExamDTOs.TemplateResponse>>> listTemplates() {
         return ResponseEntity.ok(ApiResponse.ok(service.listTemplates()));
+    }
+
+    @GetMapping("/configs")
+    @PreAuthorize(RbacSpel.EXAM_STAFF_READ)
+    @Operation(summary = "List exam module configs by academic year", description = "Metadata-driven configs: GRADING_SCHEMA, REPORT_CARD_SCHEMA, WORKFLOW_SCHEMA, AI_SCHEMA.")
+    public ResponseEntity<ApiResponse<List<ExamConfigDTOs.ModuleConfigResponse>>> listModuleConfigs(
+            @RequestParam Long academicYearId) {
+        return ResponseEntity.ok(ApiResponse.ok(service.listModuleConfigs(academicYearId)));
+    }
+
+    @PutMapping("/configs/{configKey}")
+    @PreAuthorize(RbacSpel.EXAM_OFFICE_WRITE)
+    @Operation(summary = "Create/update exam module config", description = "Versioned config update for grading/report-card/workflow/AI schemas.")
+    public ResponseEntity<ApiResponse<ExamConfigDTOs.ModuleConfigResponse>> upsertModuleConfig(
+            @PathVariable String configKey,
+            @Valid @RequestBody ExamConfigDTOs.UpsertModuleConfigRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.upsertModuleConfig(configKey, req)));
+    }
+
+    @GetMapping("/configs/{configKey}/history")
+    @PreAuthorize(RbacSpel.EXAM_STAFF_READ)
+    @Operation(summary = "List config version history")
+    public ResponseEntity<ApiResponse<List<ExamConfigDTOs.ModuleConfigHistoryResponse>>> listModuleConfigHistory(
+            @PathVariable String configKey,
+            @RequestParam Long academicYearId) {
+        return ResponseEntity.ok(ApiResponse.ok(service.listModuleConfigHistory(academicYearId, configKey)));
     }
 
     @PostMapping("/templates")
@@ -223,8 +259,11 @@ public class ExamController {
     @GetMapping("/report-card/{studentId}")
     @PreAuthorize(RbacSpel.EXAM_REPORT_CARD_VIEW)
     @Operation(summary = "Get student report card", description = "Complete report card with all subjects, totals, and grade")
-    public ResponseEntity<ApiResponse<ExamDTOs.ReportCardResponse>> reportCard(@PathVariable Long studentId, @RequestParam(required = false) Long examId) {
-        return ResponseEntity.ok(ApiResponse.ok(service.getReportCard(studentId, examId)));
+    public ResponseEntity<ApiResponse<ExamDTOs.ReportCardResponse>> reportCard(
+            @PathVariable Long studentId,
+            @RequestParam(required = false) Long examId,
+            @RequestParam(required = false, defaultValue = "en") String locale) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getReportCard(studentId, examId, locale)));
     }
 
     public ExamController(final ExamService service) {

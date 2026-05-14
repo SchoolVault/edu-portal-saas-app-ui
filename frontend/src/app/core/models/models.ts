@@ -489,6 +489,10 @@ export interface Exam {
   name: string;
   /** School-defined type slug/name (unit_test, practical, viva, etc). */
   examType?: string;
+  boardCode?: string;
+  sessionType?: string;
+  termCode?: string;
+  assessmentKind?: string;
   academicYearId: number;
   startDate: string;
   endDate: string;
@@ -1072,7 +1076,11 @@ export interface TeacherWorkloadRow {
 export interface ReportCard {
   studentId: number;
   studentName: string;
+  localeCode?: string;
+  boardCode?: string;
+  termCode?: string;
   subjects: MarkRecord[];
+  sections?: { key: string; title: string; data: Record<string, unknown> }[];
   totalMarks: number;
   totalMaxMarks: number;
   overallPercentage: number;
@@ -1181,6 +1189,28 @@ export interface MarksEntryScopeRow {
   classId: number;
   sectionId: number | null;
   subjectName: string;
+}
+
+export type ExamModuleConfigKey = 'GRADING_SCHEMA' | 'REPORT_CARD_SCHEMA' | 'WORKFLOW_SCHEMA' | 'AI_SCHEMA';
+
+export interface ExamModuleConfig {
+  id: number;
+  academicYearId: number;
+  configKey: ExamModuleConfigKey | string;
+  config: Record<string, unknown>;
+  versionNo: number;
+  note?: string;
+  updatedAt?: string;
+}
+
+export interface ExamModuleConfigHistoryItem {
+  id: number;
+  academicYearId: number;
+  configKey: ExamModuleConfigKey | string;
+  config: Record<string, unknown>;
+  versionNo: number;
+  changeNote?: string;
+  createdAt?: string;
 }
 
 export interface FeeStructure {

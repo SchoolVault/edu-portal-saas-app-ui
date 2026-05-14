@@ -327,7 +327,7 @@ app:
     mode: ${APP_DEV_MODE:false}
 
   sms:
-    provider: ${APP_SMS_PROVIDER:MOCK}
+    provider: ${APP_SMS_PROVIDER:MSG91}
     routing:
       enabled: ${APP_SMS_ROUTING_ENABLED:false}
       # First healthy provider wins. Add or reorder for failover (e.g. SPRING_EDGE,MSG91).
@@ -346,7 +346,7 @@ app:
         enabled: ${APP_SMS_PROVIDER_SPRINGEDGE_ENABLED:false}
     msg91:
       auth-key: ${APP_SMS_MSG91_AUTH_KEY:}
-      sender-id: ${APP_SMS_MSG91_SENDER_ID:}
+      sender-id: ${APP_SMS_MSG91_SENDER_ID:SCHVLT}
       base-url: ${APP_SMS_MSG91_BASE_URL:https://control.msg91.com}
       route: ${APP_SMS_MSG91_ROUTE:4}
       country: ${APP_SMS_MSG91_COUNTRY:91}
