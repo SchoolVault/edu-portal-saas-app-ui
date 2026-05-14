@@ -13,6 +13,7 @@ import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.audit.service.AuditService;
+import com.school.erp.modules.exams.dto.ExamConfigDTOs;
 import com.school.erp.modules.exams.dto.ExamDTOs;
 import com.school.erp.modules.exams.dto.ExamScopeDtos;
 import com.school.erp.modules.exams.entity.*;
@@ -58,9 +59,19 @@ public class ExamService {
     private final ExamEventLogRepository examEventLogRepository;
     private final ExamNotificationJobRepository examNotificationJobRepository;
     private final ExamBulkOperationLogRepository examBulkOperationLogRepository;
+    private final ExamModuleConfigRepository examModuleConfigRepository;
+    private final ExamModuleConfigHistoryRepository examModuleConfigHistoryRepository;
+    private final ExamBoardValidationPack examBoardValidationPack;
+    private final ExamReportCardSchemaEngine reportCardSchemaEngine;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
     private final ObjectProvider<CacheService> cacheService;
+    private static final Set<String> CONFIG_KEYS = Set.of(
+            "GRADING_SCHEMA",
+            "REPORT_CARD_SCHEMA",
+            "WORKFLOW_SCHEMA",
+            "AI_SCHEMA"
+    );
 
     @Transactional(readOnly = true)
     public List<ExamDTOs.ExamResponse> getExams() {
@@ -98,6 +109,7 @@ public class ExamService {
     public ExamDTOs.ExamResponse createExam(ExamDTOs.CreateExamRequest req) {
         String tenant = TenantContext.getTenantId();
         String role = normalizeRole(TenantContext.getUserRole());
+        validateExamDateRange(req.getStartDate(), req.getEndDate());
         List<Long> classIds = resolveClassIdsForCreate(req);
         if (classIds == null || classIds.isEmpty()) {
             throw new BusinessException("At least one class is required");
@@ -110,7 +122,16 @@ public class ExamService {
                 .classIds(classIds)
                 .status(Enums.ExamStatus.UPCOMING)
                 .build();
+        examBoardValidationPack.validateExamDefinition(
+                req.getBoardCode(),
+                req.getSessionType(),
+                req.getAssessmentKind(),
+                req.getTermCode());
         exam.setGradingConfigJson(buildGradingConfigJson(req));
+        exam.setBoardCode(examBoardValidationPack.normalizeOrDefault(req.getBoardCode(), "STATE"));
+        exam.setSessionType(examBoardValidationPack.normalizeOrDefault(req.getSessionType(), "PERIODIC"));
+        exam.setTermCode(examBoardValidationPack.normalizeOrDefault(req.getTermCode(), "TERM1"));
+        exam.setAssessmentKind(examBoardValidationPack.normalizeOrDefault(req.getAssessmentKind(), "THEORY"));
         exam.setWorkflowState(defaultWorkflowStateForCreatorRole(role));
         exam.setWorkflowNote(null);
         exam.setTenantId(tenant);
@@ -119,6 +140,45 @@ public class ExamService {
         log.info("Exam created: {}", exam.getName());
         auditService.logCreate("EXAMS", "Created exam " + exam.getName() + " (state=" + exam.getWorkflowState() + ")", exam.getId());
         parentPortalExamPageCache.invalidateTenant(tenant);
+        refreshReportCaches();
+        return toExamResponse(exam);
+    }
+
+    @Transactional
+    public ExamDTOs.ExamResponse updateExam(Long examId, ExamDTOs.CreateExamRequest req) {
+        Exam exam = requireExam(examId);
+        assertExamEditable(exam);
+        validateExamDateRange(req.getStartDate(), req.getEndDate());
+        List<Long> classIds = resolveClassIdsForCreate(req);
+        if (classIds == null || classIds.isEmpty()) {
+            throw new BusinessException("At least one class is required");
+        }
+        examBoardValidationPack.validateExamDefinition(
+                req.getBoardCode(),
+                req.getSessionType(),
+                req.getAssessmentKind(),
+                req.getTermCode());
+        exam.setName(req.getName());
+        exam.setAcademicYearId(req.getAcademicYearId());
+        exam.setStartDate(req.getStartDate());
+        exam.setEndDate(req.getEndDate());
+        exam.setClassIds(classIds);
+        exam.setGradingConfigJson(buildGradingConfigJson(req));
+        exam.setBoardCode(examBoardValidationPack.normalizeOrDefault(req.getBoardCode(), exam.getBoardCode()));
+        exam.setSessionType(examBoardValidationPack.normalizeOrDefault(req.getSessionType(), exam.getSessionType()));
+        exam.setTermCode(examBoardValidationPack.normalizeOrDefault(req.getTermCode(), exam.getTermCode()));
+        exam.setAssessmentKind(examBoardValidationPack.normalizeOrDefault(req.getAssessmentKind(), exam.getAssessmentKind()));
+        examRepo.save(exam);
+
+        List<ExamClassScope> existingScopes = scopeRepo.findByTenantIdAndExamIdAndIsDeletedFalse(exam.getTenantId(), examId);
+        for (ExamClassScope scope : existingScopes) {
+            scope.setIsDeleted(true);
+        }
+        scopeRepo.saveAll(existingScopes);
+        persistClassScopes(exam.getTenantId(), exam.getId(), req, classIds);
+
+        auditService.logUpdate("EXAMS", "Updated exam " + exam.getName(), examId, null, null);
+        parentPortalExamPageCache.invalidateTenant(exam.getTenantId());
         refreshReportCaches();
         return toExamResponse(exam);
     }
@@ -501,7 +561,8 @@ public class ExamService {
         List<MarkRecord> records = req.getMarks().stream().map(m -> {
             validateMarkEntry(m);
             double pct = m.getMaxMarks() > 0 ? (m.getMarksObtained() / m.getMaxMarks()) * 100 : 0;
-            String grade = pct >= 90 ? "A+" : pct >= 80 ? "A" : pct >= 70 ? "B+" : pct >= 60 ? "B" : pct >= 50 ? "C" : pct >= 40 ? "D" : "F";
+            examBoardValidationPack.validateMarksRange(exam.getBoardCode(), m.getMarksObtained(), m.getMaxMarks());
+            String grade = gradeFromPolicy(pct, exam.getBoardCode());
             MarkRecord rec = MarkRecord.builder()
                     .examId(req.getExamId())
                     .studentId(m.getStudentId())
@@ -593,6 +654,80 @@ public class ExamService {
             compByTpl.put(id, templateComponentRepository.findByTenantIdAndTemplateIdAndIsDeletedFalseOrderByIdAsc(t, id));
         }
         return rows.stream().map(r -> toTemplateOut(r, compByTpl.getOrDefault(r.getId(), List.of()))).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ExamConfigDTOs.ModuleConfigResponse> listModuleConfigs(Long academicYearId) {
+        if (academicYearId == null) {
+            throw new BusinessException("Academic year is required.");
+        }
+        String tenantId = TenantContext.getTenantId();
+        return examModuleConfigRepository.findByTenantIdAndAcademicYearIdAndIsDeletedFalseOrderByConfigKeyAsc(tenantId, academicYearId)
+                .stream()
+                .map(this::toModuleConfigOut)
+                .toList();
+    }
+
+    @Transactional
+    public ExamConfigDTOs.ModuleConfigResponse upsertModuleConfig(
+            String rawConfigKey,
+            ExamConfigDTOs.UpsertModuleConfigRequest req) {
+        if (req == null || req.getAcademicYearId() == null) {
+            throw new BusinessException("Academic year is required.");
+        }
+        if (req.getConfig() == null || req.getConfig().isEmpty()) {
+            throw new BusinessException("Config payload is required.");
+        }
+        String configKey = normalizeConfigKey(rawConfigKey);
+        String tenantId = TenantContext.getTenantId();
+        String json = writeJson(req.getConfig());
+        if (json.length() > 20000) {
+            throw new BusinessException("Config payload is too large.");
+        }
+        ExamModuleConfig row = examModuleConfigRepository
+                .findByTenantIdAndAcademicYearIdAndConfigKeyAndIsDeletedFalse(tenantId, req.getAcademicYearId(), configKey)
+                .orElse(null);
+        if (row == null) {
+            row = new ExamModuleConfig();
+            row.setTenantId(tenantId);
+            row.setAcademicYearId(req.getAcademicYearId());
+            row.setConfigKey(configKey);
+            row.setVersionNo(1);
+        } else {
+            row.setVersionNo((row.getVersionNo() != null ? row.getVersionNo() : 0) + 1);
+        }
+        row.setConfigJson(json);
+        row.setNote(trimNote(req.getNote()));
+        examModuleConfigRepository.save(row);
+        ExamModuleConfigHistory history = new ExamModuleConfigHistory();
+        history.setTenantId(tenantId);
+        history.setAcademicYearId(row.getAcademicYearId());
+        history.setConfigKey(configKey);
+        history.setVersionNo(row.getVersionNo());
+        history.setConfigJson(row.getConfigJson());
+        history.setChangeNote(row.getNote());
+        examModuleConfigHistoryRepository.save(history);
+        auditService.logUpdate(
+                "EXAMS",
+                "Updated exam module config " + configKey + " version " + row.getVersionNo(),
+                row.getId(),
+                null,
+                "academicYearId=" + row.getAcademicYearId());
+        return toModuleConfigOut(row);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ExamConfigDTOs.ModuleConfigHistoryResponse> listModuleConfigHistory(Long academicYearId, String rawConfigKey) {
+        if (academicYearId == null) {
+            throw new BusinessException("Academic year is required.");
+        }
+        String tenantId = TenantContext.getTenantId();
+        String configKey = normalizeConfigKey(rawConfigKey);
+        return examModuleConfigHistoryRepository
+                .findByTenantIdAndAcademicYearIdAndConfigKeyAndIsDeletedFalseOrderByVersionNoDesc(tenantId, academicYearId, configKey)
+                .stream()
+                .map(this::toModuleConfigHistoryOut)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -699,6 +834,11 @@ public class ExamService {
 
     @Transactional(readOnly = true)
     public ExamDTOs.ReportCardResponse getReportCard(Long studentId, Long examId) {
+        return getReportCard(studentId, examId, "en");
+    }
+
+    @Transactional(readOnly = true)
+    public ExamDTOs.ReportCardResponse getReportCard(Long studentId, Long examId, String localeCode) {
         markingAccessPolicy.assertMayViewStudentMarks(studentId);
         String t = TenantContext.getTenantId();
         String role = TenantContext.getUserRole() != null ? TenantContext.getUserRole().trim().toUpperCase(Locale.ROOT) : "";
@@ -728,16 +868,35 @@ public class ExamService {
         double totalObtained = marks.stream().mapToDouble(MarkRecord::getMarksObtained).sum();
         double totalMax = marks.stream().mapToDouble(MarkRecord::getMaxMarks).sum();
         double overallPct = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
-        String overallGrade = overallPct >= 90 ? "A+" : overallPct >= 80 ? "A" : overallPct >= 70 ? "B+" : overallPct >= 60 ? "B" : overallPct >= 50 ? "C" : "D";
-        return ExamDTOs.ReportCardResponse.builder()
+        Exam primaryExam = (!marks.isEmpty())
+                ? examRepo.findByIdAndTenantIdAndIsDeletedFalse(marks.get(0).getExamId(), t).orElse(null)
+                : (examId != null ? examRepo.findByIdAndTenantIdAndIsDeletedFalse(examId, t).orElse(null) : null);
+        String boardCode = primaryExam != null ? examBoardValidationPack.normalizeOrDefault(primaryExam.getBoardCode(), "STATE") : "STATE";
+        String overallGrade = gradeFromPolicy(overallPct, boardCode);
+        List<ExamDTOs.MarkResponse> subjectRows = marks.stream().map(this::toMarkResponse).collect(Collectors.toList());
+        Map<String, Object> schema = resolveModuleConfig(primaryExam, "REPORT_CARD_SCHEMA");
+        ExamDTOs.ReportCardResponse out = ExamDTOs.ReportCardResponse.builder()
                 .studentId(studentId)
                 .studentName(marks.isEmpty() ? "" : marks.get(0).getStudentName())
-                .subjects(marks.stream().map(this::toMarkResponse).collect(Collectors.toList()))
+                .subjects(subjectRows)
                 .totalMarks(totalObtained)
                 .totalMaxMarks(totalMax)
                 .overallPercentage(Math.round(overallPct * 10) / 10.0)
                 .overallGrade(overallGrade)
                 .build();
+        out.setLocaleCode(normalizeLocale(localeCode));
+        out.setBoardCode(boardCode);
+        out.setTermCode(primaryExam != null ? primaryExam.getTermCode() : null);
+        out.setSections(reportCardSchemaEngine.renderSections(
+                schema,
+                marks,
+                subjectRows,
+                totalObtained,
+                totalMax,
+                Math.round(overallPct * 10) / 10.0,
+                overallGrade,
+                out.getLocaleCode()));
+        return out;
     }
 
     private Exam requireExam(Long examId) {
@@ -809,6 +968,10 @@ public class ExamService {
                 .status(e.getStatus() != null ? e.getStatus().name().toLowerCase() : null)
                 .build();
         r.setResultsPublished(Boolean.TRUE.equals(e.getResultsPublished()));
+        r.setBoardCode(e.getBoardCode());
+        r.setSessionType(e.getSessionType());
+        r.setTermCode(e.getTermCode());
+        r.setAssessmentKind(e.getAssessmentKind());
         applyConfigFromJson(e, r);
         r.setWorkflowState(e.getWorkflowState() != null ? e.getWorkflowState() : "APPROVED");
         r.setWorkflowNote(e.getWorkflowNote());
@@ -845,6 +1008,10 @@ public class ExamService {
                 .status(e.getStatus() != null ? e.getStatus().name().toLowerCase() : null)
                 .build();
         r.setResultsPublished(Boolean.TRUE.equals(e.getResultsPublished()));
+        r.setBoardCode(e.getBoardCode());
+        r.setSessionType(e.getSessionType());
+        r.setTermCode(e.getTermCode());
+        r.setAssessmentKind(e.getAssessmentKind());
         applyConfigFromJson(e, r);
         r.setWorkflowState(e.getWorkflowState() != null ? e.getWorkflowState() : "APPROVED");
         r.setWorkflowNote(e.getWorkflowNote());
@@ -938,6 +1105,10 @@ public class ExamService {
             final ExamEventLogRepository examEventLogRepository,
             final ExamNotificationJobRepository examNotificationJobRepository,
             final ExamBulkOperationLogRepository examBulkOperationLogRepository,
+            final ExamModuleConfigRepository examModuleConfigRepository,
+            final ExamModuleConfigHistoryRepository examModuleConfigHistoryRepository,
+            final ExamBoardValidationPack examBoardValidationPack,
+            final ExamReportCardSchemaEngine reportCardSchemaEngine,
             final ObjectMapper objectMapper,
             final AuditService auditService,
             final ObjectProvider<CacheService> cacheService) {
@@ -956,6 +1127,10 @@ public class ExamService {
         this.examEventLogRepository = examEventLogRepository;
         this.examNotificationJobRepository = examNotificationJobRepository;
         this.examBulkOperationLogRepository = examBulkOperationLogRepository;
+        this.examModuleConfigRepository = examModuleConfigRepository;
+        this.examModuleConfigHistoryRepository = examModuleConfigHistoryRepository;
+        this.examBoardValidationPack = examBoardValidationPack;
+        this.reportCardSchemaEngine = reportCardSchemaEngine;
         this.objectMapper = objectMapper;
         this.auditService = auditService;
         this.cacheService = cacheService;
@@ -1024,6 +1199,15 @@ public class ExamService {
         }
     }
 
+    private void validateExamDateRange(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            throw new BusinessException("Exam start date and end date are required");
+        }
+        if (endDate.isBefore(startDate)) {
+            throw new BusinessException("Exam end date must be the same as or after start date");
+        }
+    }
+
     private String defaultWorkflowStateForCreatorRole(String role) {
         return "TEACHER".equals(role) ? "PENDING_APPROVAL" : "APPROVED";
     }
@@ -1058,6 +1242,38 @@ public class ExamService {
         }
         String x = raw.trim();
         return x.isEmpty() ? null : (x.length() > 500 ? x.substring(0, 500) : x);
+    }
+
+    private String gradeFromPolicy(double pct, String boardCode) {
+        String board = examBoardValidationPack.normalizeOrDefault(boardCode, "STATE");
+        if ("CBSE".equals(board)) {
+            return pct >= 91 ? "A1" : pct >= 81 ? "A2" : pct >= 71 ? "B1" : pct >= 61 ? "B2" : pct >= 51 ? "C1" : pct >= 41 ? "C2" : pct >= 33 ? "D" : "E";
+        }
+        if ("ICSE".equals(board)) {
+            return pct >= 90 ? "A" : pct >= 80 ? "B" : pct >= 70 ? "C" : pct >= 60 ? "D" : pct >= 50 ? "E" : pct >= 35 ? "F" : "G";
+        }
+        if ("IB".equals(board)) {
+            return pct >= 86 ? "7" : pct >= 72 ? "6" : pct >= 58 ? "5" : pct >= 44 ? "4" : pct >= 30 ? "3" : pct >= 16 ? "2" : "1";
+        }
+        return pct >= 90 ? "A+" : pct >= 80 ? "A" : pct >= 70 ? "B+" : pct >= 60 ? "B" : pct >= 50 ? "C" : pct >= 35 ? "D" : "E";
+    }
+
+    private String normalizeLocale(String localeCode) {
+        if (localeCode == null || localeCode.isBlank()) {
+            return "en";
+        }
+        String x = localeCode.trim().toLowerCase(Locale.ROOT);
+        return x.length() > 10 ? x.substring(0, 10) : x;
+    }
+
+    private Map<String, Object> resolveModuleConfig(Exam exam, String configKey) {
+        if (exam == null || exam.getAcademicYearId() == null || configKey == null) {
+            return Map.of();
+        }
+        return examModuleConfigRepository
+                .findByTenantIdAndAcademicYearIdAndConfigKeyAndIsDeletedFalse(exam.getTenantId(), exam.getAcademicYearId(), configKey)
+                .map(cfg -> readJsonMap(cfg.getConfigJson()))
+                .orElse(Map.of());
     }
 
     private static String normalizeRole(String role) {
@@ -1369,6 +1585,41 @@ public class ExamService {
 
     private String formatDateTime(LocalDateTime value) {
         return value != null ? value.toString() : null;
+    }
+
+    private String normalizeConfigKey(String rawConfigKey) {
+        if (rawConfigKey == null || rawConfigKey.isBlank()) {
+            throw new BusinessException("Config key is required.");
+        }
+        String key = rawConfigKey.trim().toUpperCase(Locale.ROOT);
+        if (!CONFIG_KEYS.contains(key)) {
+            throw new BusinessException("Unsupported config key. Allowed: " + CONFIG_KEYS);
+        }
+        return key;
+    }
+
+    private ExamConfigDTOs.ModuleConfigResponse toModuleConfigOut(ExamModuleConfig row) {
+        ExamConfigDTOs.ModuleConfigResponse out = new ExamConfigDTOs.ModuleConfigResponse();
+        out.setId(row.getId());
+        out.setAcademicYearId(row.getAcademicYearId());
+        out.setConfigKey(row.getConfigKey());
+        out.setConfig(readJsonMap(row.getConfigJson()));
+        out.setVersionNo(row.getVersionNo());
+        out.setNote(row.getNote());
+        out.setUpdatedAt(formatDateTime(row.getUpdatedAt()));
+        return out;
+    }
+
+    private ExamConfigDTOs.ModuleConfigHistoryResponse toModuleConfigHistoryOut(ExamModuleConfigHistory row) {
+        ExamConfigDTOs.ModuleConfigHistoryResponse out = new ExamConfigDTOs.ModuleConfigHistoryResponse();
+        out.setId(row.getId());
+        out.setAcademicYearId(row.getAcademicYearId());
+        out.setConfigKey(row.getConfigKey());
+        out.setConfig(readJsonMap(row.getConfigJson()));
+        out.setVersionNo(row.getVersionNo());
+        out.setChangeNote(row.getChangeNote());
+        out.setCreatedAt(formatDateTime(row.getCreatedAt()));
+        return out;
     }
 
     private void runJobWithTenantContext(ExamNotificationJob job, Runnable task) {

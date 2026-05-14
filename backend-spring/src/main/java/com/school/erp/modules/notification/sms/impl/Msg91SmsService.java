@@ -5,8 +5,10 @@ import com.school.erp.modules.notification.sms.BulkSmsResponse;
 import com.school.erp.modules.notification.sms.SmsRequest;
 import com.school.erp.modules.notification.sms.SmsResponse;
 import com.school.erp.modules.notification.sms.SmsService;
+import com.school.erp.modules.notification.sms.SmsTemplate;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
+import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,6 +21,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -29,7 +32,8 @@ import org.springframework.web.client.RestTemplate;
  */
 @Service
 @ConditionalOnExpression(
-    "'${app.sms.provider:MOCK}'.equalsIgnoreCase('MSG91') || '${app.sms.providers.msg91.enabled:false}'.equalsIgnoreCase('true')")
+    "'${app.sms.provider:MOCK}'.equalsIgnoreCase('MSG91') " +
+            "|| '${app.sms.providers.msg91.enabled:false}'.equalsIgnoreCase('true')")
 @Slf4j
 public class Msg91SmsService implements SmsService {
     private static final String PROVIDER_NAME = "MSG91";
@@ -50,22 +54,42 @@ public class Msg91SmsService implements SmsService {
     @Value("${app.sms.msg91.country:91}")
     private String country;
 
-    @Value("${app.sms.msg91.healthcheck-enabled:false}")
+    @Value("${app.sms.msg91.flow-path:/api/v5/flow}")
+    private String flowPath;
+
+    @Value("${app.sms.msg91.pe-id:}")
+    private String peId;
+
+    @Value("${app.sms.msg91.connect-timeout-ms:5000}")
+    private int connectTimeoutMs;
+
+    @Value("${app.sms.msg91.read-timeout-ms:10000}")
+    private int readTimeoutMs;
+
+    @Value("${app.sms.msg91.healthcheck-enabled:}")
     private boolean healthcheckEnabled;
 
-    @Value("${app.sms.msg91.healthcheck-path:/api/v5/checkBalance}")
+    @Value("${app.sms.msg91.healthcheck-path:/api/balance.php}")
     private String healthcheckPath;
+
+    @PostConstruct
+    void configureHttpClientTimeouts() {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Math.max(connectTimeoutMs, 1000));
+        requestFactory.setReadTimeout(Math.max(readTimeoutMs, 1000));
+        restTemplate.setRequestFactory(requestFactory);
+    }
 
     @Override
     @CircuitBreaker(name = "smsProvider")
     @Retry(name = "smsProvider")
     public SmsResponse sendSms(SmsRequest request) {
-        if (!isConfigured()) {
+        if (!StringUtils.hasText(authKey)) {
             return SmsResponse.builder()
                     .success(false)
                     .providerStatus("CONFIG_ERROR")
                     .providerName(PROVIDER_NAME)
-                    .errorMessage("MSG91 not configured: set APP_SMS_MSG91_AUTH_KEY and APP_SMS_MSG91_SENDER_ID")
+                    .errorMessage("MSG91 not configured: set APP_SMS_MSG91_AUTH_KEY")
                     .build();
         }
         String to = normalizePhoneForMsg91(request.getTo());
@@ -78,12 +102,28 @@ public class Msg91SmsService implements SmsService {
                     .build();
         }
         String message = request.getMessage() == null ? "" : request.getMessage().trim();
-        if (message.isEmpty()) {
+        SmsTemplate template = request.getTemplate();
+        if (template == null && message.isEmpty()) {
             return SmsResponse.builder()
                     .success(false)
                     .providerStatus("INVALID_MESSAGE")
                     .providerName(PROVIDER_NAME)
                     .errorMessage("SMS message cannot be empty")
+                    .build();
+        }
+        if (template != null) {
+            return sendTemplateSms(template, to);
+        }
+        return sendPlainSms(message, to);
+    }
+
+    private SmsResponse sendPlainSms(String message, String to) {
+        if (!StringUtils.hasText(senderId)) {
+            return SmsResponse.builder()
+                    .success(false)
+                    .providerStatus("CONFIG_ERROR")
+                    .providerName(PROVIDER_NAME)
+                    .errorMessage("MSG91 sender_id is missing for plain SMS")
                     .build();
         }
         String url = normalizedBaseUrl() + "/api/v2/sendsms";
@@ -121,6 +161,66 @@ public class Msg91SmsService implements SmsService {
                     .build();
         } catch (RestClientException ex) {
             log.warn("MSG91 send failed: {}", ex.getMessage());
+            return SmsResponse.builder()
+                    .success(false)
+                    .providerStatus("NETWORK_ERROR")
+                    .providerName(PROVIDER_NAME)
+                    .errorMessage(ex.getMessage())
+                    .build();
+        }
+    }
+
+    private SmsResponse sendTemplateSms(SmsTemplate template, String to) {
+        if (!StringUtils.hasText(template.getTemplateId())) {
+            return SmsResponse.builder()
+                    .success(false)
+                    .providerStatus("CONFIG_ERROR")
+                    .providerName(PROVIDER_NAME)
+                    .errorMessage("MSG91 template_id is missing")
+                    .build();
+        }
+        String url = normalizedBaseUrl() + normalizedPath(flowPath);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("authkey", authKey.trim());
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+
+        Map<String, Object> recipient = new LinkedHashMap<>();
+        recipient.put("mobiles", countryPrefixMobile(to));
+        if (template.getVariables() != null) {
+            for (Map.Entry<String, String> entry : template.getVariables().entrySet()) {
+                if (StringUtils.hasText(entry.getKey()) && entry.getValue() != null) {
+                    recipient.put(entry.getKey(), entry.getValue());
+                }
+            }
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("template_id", template.getTemplateId().trim());
+        payload.put("short_url", "0");
+        if (StringUtils.hasText(peId)) {
+            payload.put("PE_ID", peId.trim());
+        }
+        payload.put("recipients", List.of(recipient));
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = restTemplate.postForObject(url, new HttpEntity<>(payload, headers), Map.class);
+            return parseResponse(response);
+        } catch (HttpStatusCodeException ex) {
+            String snippet = ex.getResponseBodyAsString();
+            if (snippet != null && snippet.length() > 300) {
+                snippet = snippet.substring(0, 300) + "...";
+            }
+            log.warn("MSG91 flow send rejected status={} body={}", ex.getStatusCode(), snippet);
+            return SmsResponse.builder()
+                    .success(false)
+                    .providerStatus(mapHttpFailureStatus(ex.getStatusCode().value()))
+                    .providerName(PROVIDER_NAME)
+                    .errorMessage("MSG91 HTTP " + ex.getStatusCode().value() + ": " + snippet)
+                    .build();
+        } catch (RestClientException ex) {
+            log.warn("MSG91 flow send failed: {}", ex.getMessage());
             return SmsResponse.builder()
                     .success(false)
                     .providerStatus("NETWORK_ERROR")
@@ -204,11 +304,19 @@ public class Msg91SmsService implements SmsService {
     }
 
     private boolean isConfigured() {
-        return StringUtils.hasText(authKey) && StringUtils.hasText(senderId);
+        return StringUtils.hasText(authKey);
     }
 
     private String normalizedBaseUrl() {
         return baseUrl == null ? "https://control.msg91.com" : baseUrl.replaceAll("/+$", "");
+    }
+
+    private static String normalizedPath(String path) {
+        if (!StringUtils.hasText(path)) {
+            return "/api/v5/flow";
+        }
+        String trimmed = path.trim();
+        return trimmed.startsWith("/") ? trimmed : "/" + trimmed;
     }
 
     private static String normalizePhoneForMsg91(String raw) {
@@ -223,6 +331,15 @@ public class Msg91SmsService implements SmsService {
             return digits;
         }
         return digits;
+    }
+
+    private String countryPrefixMobile(String tenDigitMobile) {
+        String countryCode = StringUtils.hasText(country) ? country.trim() : "91";
+        String number = tenDigitMobile == null ? "" : tenDigitMobile.trim();
+        if (number.startsWith(countryCode)) {
+            return number;
+        }
+        return countryCode + number;
     }
 
     private static String mapHttpFailureStatus(int code) {

@@ -2,6 +2,7 @@ package com.school.erp.modules.exams.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.AssertTrue;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,10 @@ public class ExamDTOs {
         @NotBlank
         private String name;
         private String examType;
+        private String boardCode;
+        private String sessionType;
+        private String termCode;
+        private String assessmentKind;
         private String markingScheme;
         private Map<String, Object> gradingConfig;
         private Long academicYearId;
@@ -98,6 +103,38 @@ public class ExamDTOs {
             this.examType = examType;
         }
 
+        public String getBoardCode() {
+            return boardCode;
+        }
+
+        public void setBoardCode(String boardCode) {
+            this.boardCode = boardCode;
+        }
+
+        public String getSessionType() {
+            return sessionType;
+        }
+
+        public void setSessionType(String sessionType) {
+            this.sessionType = sessionType;
+        }
+
+        public String getTermCode() {
+            return termCode;
+        }
+
+        public void setTermCode(String termCode) {
+            this.termCode = termCode;
+        }
+
+        public String getAssessmentKind() {
+            return assessmentKind;
+        }
+
+        public void setAssessmentKind(String assessmentKind) {
+            this.assessmentKind = assessmentKind;
+        }
+
         public String getMarkingScheme() {
             return markingScheme;
         }
@@ -124,6 +161,14 @@ public class ExamDTOs {
 
         public LocalDate getEndDate() {
             return this.endDate;
+        }
+
+        @AssertTrue(message = "End date must be the same as or after start date")
+        public boolean isDateRangeValid() {
+            if (startDate == null || endDate == null) {
+                return true;
+            }
+            return !endDate.isBefore(startDate);
         }
 
         public List<Long> getClassIds() {
@@ -225,6 +270,10 @@ public class ExamDTOs {
         private Long id;
         private String name;
         private String examType;
+        private String boardCode;
+        private String sessionType;
+        private String termCode;
+        private String assessmentKind;
         private String markingScheme;
         private Map<String, Object> gradingConfig;
         private Long academicYearId;
@@ -332,6 +381,38 @@ public class ExamDTOs {
 
         public void setExamType(String examType) {
             this.examType = examType;
+        }
+
+        public String getBoardCode() {
+            return boardCode;
+        }
+
+        public void setBoardCode(String boardCode) {
+            this.boardCode = boardCode;
+        }
+
+        public String getSessionType() {
+            return sessionType;
+        }
+
+        public void setSessionType(String sessionType) {
+            this.sessionType = sessionType;
+        }
+
+        public String getTermCode() {
+            return termCode;
+        }
+
+        public void setTermCode(String termCode) {
+            this.termCode = termCode;
+        }
+
+        public String getAssessmentKind() {
+            return assessmentKind;
+        }
+
+        public void setAssessmentKind(String assessmentKind) {
+            this.assessmentKind = assessmentKind;
         }
 
         public String getMarkingScheme() {
@@ -1142,7 +1223,11 @@ public class ExamDTOs {
     public static class ReportCardResponse {
         private Long studentId;
         private String studentName;
+        private String localeCode;
+        private String boardCode;
+        private String termCode;
         private List<MarkResponse> subjects;
+        private List<ReportCardSection> sections;
         private double totalMarks;
         private double totalMaxMarks;
         private double overallPercentage;
@@ -1241,6 +1326,38 @@ public class ExamDTOs {
 
         public List<MarkResponse> getSubjects() {
             return this.subjects;
+        }
+
+        public String getLocaleCode() {
+            return localeCode;
+        }
+
+        public void setLocaleCode(String localeCode) {
+            this.localeCode = localeCode;
+        }
+
+        public String getBoardCode() {
+            return boardCode;
+        }
+
+        public void setBoardCode(String boardCode) {
+            this.boardCode = boardCode;
+        }
+
+        public String getTermCode() {
+            return termCode;
+        }
+
+        public void setTermCode(String termCode) {
+            this.termCode = termCode;
+        }
+
+        public List<ReportCardSection> getSections() {
+            return sections;
+        }
+
+        public void setSections(List<ReportCardSection> sections) {
+            this.sections = sections;
         }
 
         public double getTotalMarks() {
@@ -1352,6 +1469,36 @@ public class ExamDTOs {
             this.totalMaxMarks = totalMaxMarks;
             this.overallPercentage = overallPercentage;
             this.overallGrade = overallGrade;
+        }
+    }
+
+    public static class ReportCardSection {
+        private String key;
+        private String title;
+        private Map<String, Object> data;
+
+        public String getKey() {
+            return key;
+        }
+
+        public void setKey(String key) {
+            this.key = key;
+        }
+
+        public String getTitle() {
+            return title;
+        }
+
+        public void setTitle(String title) {
+            this.title = title;
+        }
+
+        public Map<String, Object> getData() {
+            return data;
+        }
+
+        public void setData(Map<String, Object> data) {
+            this.data = data;
         }
     }
 

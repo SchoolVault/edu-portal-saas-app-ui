@@ -39,6 +39,14 @@ public class Exam extends BaseEntity implements AcademicYearScopedEntity {
     private Boolean resultsPublished = false;
     @Column(name = "grading_config_json", columnDefinition = "json")
     private String gradingConfigJson;
+    @Column(name = "board_code", length = 30)
+    private String boardCode;
+    @Column(name = "session_type", length = 30)
+    private String sessionType;
+    @Column(name = "term_code", length = 30)
+    private String termCode;
+    @Column(name = "assessment_kind", length = 30)
+    private String assessmentKind;
     @Column(name = "workflow_state", length = 40)
     private String workflowState;
     @Column(name = "workflow_note", length = 500)
@@ -157,6 +165,38 @@ public class Exam extends BaseEntity implements AcademicYearScopedEntity {
 
     public void setGradingConfigJson(String gradingConfigJson) {
         this.gradingConfigJson = gradingConfigJson;
+    }
+
+    public String getBoardCode() {
+        return boardCode;
+    }
+
+    public void setBoardCode(String boardCode) {
+        this.boardCode = boardCode;
+    }
+
+    public String getSessionType() {
+        return sessionType;
+    }
+
+    public void setSessionType(String sessionType) {
+        this.sessionType = sessionType;
+    }
+
+    public String getTermCode() {
+        return termCode;
+    }
+
+    public void setTermCode(String termCode) {
+        this.termCode = termCode;
+    }
+
+    public String getAssessmentKind() {
+        return assessmentKind;
+    }
+
+    public void setAssessmentKind(String assessmentKind) {
+        this.assessmentKind = assessmentKind;
     }
 
     public String getWorkflowState() {

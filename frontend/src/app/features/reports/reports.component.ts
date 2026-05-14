@@ -39,6 +39,7 @@ import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 import { formatDateDdMmYyyy } from '../../core/utils/date-format';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 
 @Component({
   selector: 'app-reports',
@@ -103,18 +104,18 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
             <div class="col-md-2">
               <label class="erp-label">{{ 'reports.packCode' | translate }}</label>
               <select class="erp-select" [(ngModel)]="templateDraft.packCode">
-                <option value="CBSE">CBSE</option>
-                <option value="ICSE">ICSE</option>
-                <option value="STATE">STATE</option>
-                <option value="CUSTOM">CUSTOM</option>
+                <option value="CBSE">{{ 'reports.boardPreset.cbse' | translate }}</option>
+                <option value="ICSE">{{ 'reports.boardPreset.icse' | translate }}</option>
+                <option value="STATE">{{ 'reports.boardPreset.state' | translate }}</option>
+                <option value="CUSTOM">{{ 'reports.boardPreset.custom' | translate }}</option>
               </select>
               <p class="text-muted small mb-0 mt-1">{{ 'reports.designer.packHint' | translate }}</p>
             </div>
             <div class="col-md-2">
               <label class="erp-label">{{ 'reports.format' | translate }}</label>
               <select class="erp-select" [(ngModel)]="templateDraft.defaultFormat">
-                <option value="PDF">PDF</option>
-                <option value="CSV">CSV</option>
+                <option value="PDF">{{ 'reports.formatLabel.pdf' | translate }}</option>
+                <option value="CSV">{{ 'reports.formatLabel.csv' | translate }}</option>
               </select>
             </div>
             <div class="col-md-2 reports-template-save-col">
@@ -208,8 +209,8 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
               <div class="col-md-4">
                 <label class="erp-label">{{ 'reports.format' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="designerFormat">
-                  <option value="PDF">PDF</option>
-                  <option value="CSV">CSV</option>
+                  <option value="PDF">{{ 'reports.formatLabel.pdf' | translate }}</option>
+                  <option value="CSV">{{ 'reports.formatLabel.csv' | translate }}</option>
                 </select>
               </div>
             </div>
@@ -248,15 +249,21 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
               </div>
               <div class="col-md-3">
                 <label class="erp-label small">{{ 'reports.shareRolesCsv' | translate }}</label>
-                <input class="erp-input" [(ngModel)]="designerShareRolesCsv" />
+                <select class="erp-select" multiple [(ngModel)]="designerShareRoles">
+                  <option *ngFor="let role of designerShareRoleOptions" [ngValue]="role">{{ role }}</option>
+                </select>
               </div>
               <div class="col-md-3">
                 <label class="erp-label small">{{ 'reports.shareLocalesCsv' | translate }}</label>
-                <input class="erp-input" [(ngModel)]="designerShareLocalesCsv" />
+                <select class="erp-select" multiple [(ngModel)]="designerShareLocales">
+                  <option *ngFor="let locale of designerShareLocaleOptions" [ngValue]="locale">{{ locale }}</option>
+                </select>
               </div>
               <div class="col-md-3">
                 <label class="erp-label small">{{ 'reports.shareChannelsCsv' | translate }}</label>
-                <input class="erp-input" [(ngModel)]="designerShareChannelsCsv" />
+                <select class="erp-select" multiple [(ngModel)]="designerShareChannels">
+                  <option *ngFor="let channel of designerShareChannelOptions" [ngValue]="channel">{{ channel }}</option>
+                </select>
               </div>
             </div>
           </div>
@@ -279,7 +286,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
             </div>
           </div>
           <table class="erp-table" *ngIf="reportJobs.length">
-            <thead><tr><th>ID</th><th>{{ 'reports.reportType' | translate }}</th><th>{{ 'reports.format' | translate }}</th><th>{{ 'reports.th.status' | translate }}</th><th>{{ 'reports.workflowState' | translate }}</th><th>{{ 'reports.generatedAt' | translate }}</th><th>{{ 'reports.download' | translate }}</th></tr></thead>
+            <thead><tr><th>{{ 'reports.th.id' | translate }}</th><th>{{ 'reports.reportType' | translate }}</th><th>{{ 'reports.format' | translate }}</th><th>{{ 'reports.th.status' | translate }}</th><th>{{ 'reports.workflowState' | translate }}</th><th>{{ 'reports.generatedAt' | translate }}</th><th>{{ 'reports.download' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let j of reportJobs">
                 <td>{{ j.id }}</td>
@@ -668,6 +675,13 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                 <option *ngFor="let exam of exams" [ngValue]="exam.id">{{ exam.name }}</option>
               </select>
             </div>
+            <div class="col-md-4">
+              <label class="erp-label">{{ 'reports.labelLocale' | translate }}</label>
+              <select class="erp-select" [(ngModel)]="selectedReportLocale" (change)="loadReportCard()">
+                <option value="en">{{ 'reports.localeEnglish' | translate }}</option>
+                <option value="hi">{{ 'reports.localeHindi' | translate }}</option>
+              </select>
+            </div>
           </div>
         </div>
         <div class="erp-card" *ngIf="reportCard">
@@ -677,6 +691,11 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
               <button type="button" class="btn-outline-erp btn-sm reports-export-btn" (click)="exportReportCardCsv()"><i class="bi bi-download"></i> {{ 'reports.export' | translate }}</button>
               <div>{{ reportCard.overallPercentage | number:'1.0-1' }}% · {{ reportCard.overallGrade }}</div>
             </div>
+          </div>
+          <div class="reports-report-meta">
+            <span class="reports-report-meta__chip" *ngIf="reportCard.boardCode">{{ 'reports.labelBoard' | translate }}: {{ reportCard.boardCode }}</span>
+            <span class="reports-report-meta__chip" *ngIf="reportCard.termCode">{{ 'reports.labelTerm' | translate }}: {{ reportCard.termCode }}</span>
+            <span class="reports-report-meta__chip">{{ 'reports.labelLocale' | translate }}: {{ reportCard.localeCode || selectedReportLocale }}</span>
           </div>
           <div class="mb-2 mt-2" style="max-width: 360px;">
             <label class="erp-label small mb-1" erpI18nText="reports.filter.reportCardSubjects"></label>
@@ -703,6 +722,48 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
             (pageIndexChange)="onRcSubPageIndex($event)"
             (pageSizeChange)="onRepPageSize($event, 'rc')"
           />
+          <div class="mt-4" *ngIf="reportCard.sections?.length">
+            <h4 class="erp-card-title mb-2">{{ 'reports.dynamicSectionsTitle' | translate }}</h4>
+            <div class="row g-3">
+              <div class="col-md-6" *ngFor="let section of reportCard.sections">
+                <div class="reports-section-card">
+                  <h5 class="reports-section-card__title">{{ section.title || section.key }}</h5>
+                  <ng-container [ngSwitch]="reportCardSectionLayout(section)">
+                    <table class="erp-table mb-0" *ngSwitchCase="'table'">
+                      <thead>
+                        <tr>
+                          <th *ngFor="let col of reportCardSectionTableColumns(section)">{{ col.label }}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr *ngFor="let row of reportCardSectionTableRows(section)">
+                          <td *ngFor="let col of reportCardSectionTableColumns(section)">{{ row[col.key] }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <ul *ngSwitchCase="'list'" class="reports-section-list mb-0">
+                      <li *ngFor="let item of reportCardSectionListItems(section)">{{ item }}</li>
+                    </ul>
+                    <div *ngSwitchCase="'badges'" class="reports-section-badges">
+                      <span class="reports-section-badge" *ngFor="let badge of reportCardSectionBadgeItems(section)">{{ badge }}</span>
+                    </div>
+                    <blockquote *ngSwitchCase="'remarks'" class="reports-remark-block mb-0">
+                      {{ reportCardSectionRemark(section) }}
+                    </blockquote>
+                    <table class="erp-table mb-0" *ngSwitchDefault>
+                      <tbody>
+                        <tr *ngFor="let row of reportCardSectionRows(section)">
+                          <th>{{ row.label }}</th>
+                          <td>{{ row.value }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </ng-container>
+                  <p *ngIf="reportCardSectionIsEmpty(section)" class="text-muted small mb-0">{{ 'reports.noData' | translate }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -753,10 +814,10 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
             <div class="col-md-4">
               <label class="erp-label">{{ 'reports.insightsPresetLabel' | translate }}</label>
               <select class="erp-select" [(ngModel)]="analyticsPackCode">
-                <option value="CBSE">CBSE</option>
-                <option value="ICSE">ICSE</option>
-                <option value="STATE">STATE</option>
-                <option value="CUSTOM">CUSTOM</option>
+                <option value="CBSE">{{ 'reports.boardPreset.cbse' | translate }}</option>
+                <option value="ICSE">{{ 'reports.boardPreset.icse' | translate }}</option>
+                <option value="STATE">{{ 'reports.boardPreset.state' | translate }}</option>
+                <option value="CUSTOM">{{ 'reports.boardPreset.custom' | translate }}</option>
               </select>
             </div>
           </div>
@@ -917,6 +978,60 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
     .reports-export-btn {
       margin-left: auto;
     }
+    .reports-report-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0 12px;
+    }
+    .reports-report-meta__chip {
+      font-size: 12px;
+      border-radius: 999px;
+      padding: 4px 10px;
+      border: 1px solid color-mix(in srgb, var(--clr-border) 70%, var(--clr-primary) 30%);
+      background: color-mix(in srgb, var(--clr-primary) 8%, var(--clr-surface));
+      color: color-mix(in srgb, var(--clr-text) 80%, var(--clr-primary) 20%);
+    }
+    .reports-section-card {
+      border: 1px solid color-mix(in srgb, var(--clr-border) 80%, var(--clr-primary) 20%);
+      border-radius: 12px;
+      padding: 12px;
+      background: color-mix(in srgb, var(--clr-surface) 97%, var(--clr-primary) 3%);
+    }
+    .reports-section-card__title {
+      font-size: 14px;
+      font-weight: 700;
+      margin: 0 0 8px;
+      color: color-mix(in srgb, var(--clr-text) 84%, var(--clr-primary) 16%);
+    }
+    .reports-section-list {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+    }
+    .reports-section-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .reports-section-badge {
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      border: 1px solid color-mix(in srgb, var(--clr-border) 72%, var(--clr-primary) 28%);
+      background: color-mix(in srgb, var(--clr-primary) 10%, var(--clr-surface));
+    }
+    .reports-remark-block {
+      margin: 0;
+      border-left: 3px solid var(--clr-primary);
+      background: color-mix(in srgb, var(--clr-primary) 8%, var(--clr-surface));
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      color: color-mix(in srgb, var(--clr-text) 90%, var(--clr-primary) 10%);
+    }
     @media (max-width: 768px) {
       .erp-table { font-size: 12px; }
       .btn-outline-erp.btn-sm { margin-bottom: 4px; }
@@ -965,6 +1080,7 @@ export class ReportsComponent implements OnInit {
   sectionRows: SectionSummaryRow[] = [];
   teacherRows: TeacherWorkloadRow[] = [];
   reportCard: ReportCard | null = null;
+  selectedReportLocale = 'en';
   feeSummary = { totalCollected: 0, totalPending: 0, overdueCount: 0, totalStudents: 0, collectionRate: 0 };
 
   repPageSize = DEFAULT_ERP_PAGE_SIZE;
@@ -1034,9 +1150,9 @@ export class ReportsComponent implements OnInit {
   designerStudentId: number | null = null;
   designerMonth = new Date().toISOString().slice(0, 7);
   designerScheduleAt = '';
-  designerShareRolesCsv = 'PARENT,TEACHER,ADMIN';
-  designerShareLocalesCsv = 'en,hi';
-  designerShareChannelsCsv = 'IN_APP';
+  designerShareRoles: string[] = ['PARENT', 'TEACHER', 'ADMIN'];
+  designerShareLocales: string[] = ['en', 'hi'];
+  designerShareChannels: string[] = ['IN_APP'];
   showAdvancedDesigner = false;
   showTemplateSetup = false;
   showInsightsAdvanced = false;
@@ -1050,6 +1166,9 @@ export class ReportsComponent implements OnInit {
     'SECTION_SUMMARY',
     'TEACHER_WORKLOAD',
   ];
+  readonly designerShareRoleOptions = ['PARENT', 'TEACHER', 'ADMIN', 'STUDENT'];
+  readonly designerShareLocaleOptions = ['en', 'hi'];
+  readonly designerShareChannelOptions = ['IN_APP', 'EMAIL', 'SMS', 'WHATSAPP'];
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -1059,6 +1178,7 @@ export class ReportsComponent implements OnInit {
     private feeService: FeeService,
     private reportService: ReportService,
     private studentService: StudentService,
+    private confirmDialog: ConfirmDialogService,
     private auth: AuthService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef
@@ -1213,7 +1333,11 @@ export class ReportsComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+    this.selectedReportLocale = this.normalizeReportLocale(this.translate.currentLang);
+    this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(({ lang }) => {
+      this.selectedReportLocale = this.normalizeReportLocale(lang);
+      this.cdr.markForCheck();
+    });
     this.refreshAllReports();
   }
 
@@ -1406,11 +1530,108 @@ export class ReportsComponent implements OnInit {
     const studentId = this.selectedStudentId ?? this.reportCardStudents[0]?.id;
     if (studentId == null) return;
     this.selectedStudentId = studentId;
-    this.reportService.getReportCard(studentId, this.selectedExamId ?? undefined).subscribe(card => {
+    this.reportService.getReportCard(studentId, this.selectedExamId ?? undefined, this.selectedReportLocale).subscribe(card => {
       this.reportCard = card;
       this.rcSubPageIndex = 0;
       this.applyRcSubPaging();
     });
+  }
+
+  reportCardSectionRows(section: { key: string; title: string; data: Record<string, unknown> }): Array<{ label: string; value: string }> {
+    const data = section?.data ?? {};
+    return Object.entries(data).map(([key, value]) => ({
+      label: this.humanizeReportCardKey(key),
+      value: this.humanizeReportCardValue(value),
+    }));
+  }
+
+  reportCardSectionLayout(section: { key: string; title: string; data: Record<string, unknown> }): string {
+    const layout = String(section?.data?.['layout'] ?? '').trim().toLowerCase();
+    return layout || 'kv';
+  }
+
+  reportCardSectionTableColumns(section: { key: string; title: string; data: Record<string, unknown> }): Array<{ key: string; label: string }> {
+    const explicit = Array.isArray(section?.data?.['tableColumns'])
+      ? section.data['tableColumns'] as Array<Record<string, unknown>>
+      : [];
+    if (explicit.length) {
+      return explicit.map(col => ({
+        key: String(col?.['key'] ?? ''),
+        label: String(col?.['label'] ?? col?.['key'] ?? ''),
+      })).filter(col => !!col.key);
+    }
+    return [
+      { key: 'subjectName', label: this.translate.instant('reports.th.subject') },
+      { key: 'marksObtained', label: this.translate.instant('reports.th.marks') },
+      { key: 'maxMarks', label: this.translate.instant('reports.th.maxMarks') },
+      { key: 'grade', label: this.translate.instant('reports.th.grade') },
+    ];
+  }
+
+  reportCardSectionTableRows(section: { key: string; title: string; data: Record<string, unknown> }): Array<Record<string, string>> {
+    const explicitRows = Array.isArray(section?.data?.['tableRows'])
+      ? section.data['tableRows'] as Array<Record<string, unknown>>
+      : [];
+    if (explicitRows.length) {
+      return explicitRows.map(row => {
+        const out: Record<string, string> = {};
+        for (const col of this.reportCardSectionTableColumns(section)) {
+          out[col.key] = this.humanizeReportCardValue(row[col.key]);
+        }
+        return out;
+      });
+    }
+    const rows = Array.isArray(section?.data?.['rows']) ? section.data['rows'] as Array<Record<string, unknown>> : [];
+    return rows.map(row => ({
+      subjectName: String(row?.['subjectName'] ?? row?.['subject'] ?? '-'),
+      marksObtained: this.humanizeReportCardValue(row?.['marksObtained']),
+      maxMarks: this.humanizeReportCardValue(row?.['maxMarks']),
+      grade: this.humanizeReportCardValue(row?.['grade']),
+    }));
+  }
+
+  reportCardSectionListItems(section: { key: string; title: string; data: Record<string, unknown> }): string[] {
+    const data = section?.data ?? {};
+    if (Array.isArray(data['displayRows'])) {
+      return (data['displayRows'] as Array<Record<string, unknown>>).map(row =>
+        `${this.humanizeReportCardValue(row['label'])}: ${this.humanizeReportCardValue(row['value'])}`
+      );
+    }
+    if (Array.isArray(data['items'])) {
+      return (data['items'] as unknown[]).map(v => this.humanizeReportCardValue(v));
+    }
+    return Object.entries(data)
+      .filter(([k]) => k !== 'layout')
+      .map(([k, v]) => `${this.humanizeReportCardKey(k)}: ${this.humanizeReportCardValue(v)}`);
+  }
+
+  reportCardSectionBadgeItems(section: { key: string; title: string; data: Record<string, unknown> }): string[] {
+    const data = section?.data ?? {};
+    if (Array.isArray(data['displayRows'])) {
+      return (data['displayRows'] as Array<Record<string, unknown>>).map(row =>
+        `${this.humanizeReportCardValue(row['label'])} ${this.humanizeReportCardValue(row['value'])}`
+      );
+    }
+    if (Array.isArray(data['badges'])) {
+      return (data['badges'] as unknown[]).map(v => this.humanizeReportCardValue(v));
+    }
+    return Object.entries(data)
+      .filter(([k]) => k !== 'layout')
+      .map(([k, v]) => `${this.humanizeReportCardKey(k)} ${this.humanizeReportCardValue(v)}`);
+  }
+
+  reportCardSectionRemark(section: { key: string; title: string; data: Record<string, unknown> }): string {
+    const data = section?.data ?? {};
+    return this.humanizeReportCardValue(data['remark'] ?? data['template'] ?? data['note'] ?? '');
+  }
+
+  reportCardSectionIsEmpty(section: { key: string; title: string; data: Record<string, unknown> }): boolean {
+    const layout = this.reportCardSectionLayout(section);
+    if (layout === 'table') return this.reportCardSectionTableRows(section).length === 0;
+    if (layout === 'list') return this.reportCardSectionListItems(section).length === 0;
+    if (layout === 'badges') return this.reportCardSectionBadgeItems(section).length === 0;
+    if (layout === 'remarks') return !this.reportCardSectionRemark(section).trim();
+    return this.reportCardSectionRows(section).length === 0;
   }
 
   getStudentClassName(studentId: number): string {
@@ -1849,22 +2070,38 @@ export class ReportsComponent implements OnInit {
     if (this.designerExamId != null) filters['examId'] = this.designerExamId;
     if (this.designerStudentId != null) filters['studentId'] = this.designerStudentId;
     if (this.designerMonth) filters['month'] = this.designerMonth;
-    this.reportService
-      .generateReport({
-        templateId: this.selectedTemplateId,
-        reportType: this.designerReportType,
-        format: this.designerFormat,
-        requestId: `ui-${Date.now()}`,
-        scheduleAt: this.designerScheduleAt ? this.toApiLocalDateTime(this.designerScheduleAt) : undefined,
-        shareConfig: {
-          channels: this.csvList(this.designerShareChannelsCsv),
-          targetRoles: this.csvList(this.designerShareRolesCsv),
-          locales: this.csvList(this.designerShareLocalesCsv),
-          templateCode: 'REPORT_SHARED_DEFAULT',
-        },
-        filters,
+    this.confirmDialog
+      .confirm({
+        title: 'Generate this report batch?',
+        message: 'A generation job will be created using your selected format, filters, and sharing setup.',
+        details: [
+          `Type: ${this.reportTypeLabel(this.designerReportType)}`,
+          `Format: ${this.designerFormat}`,
+          `Schedule: ${this.designerScheduleAt ? this.designerScheduleAt : 'Run immediately'}`,
+        ],
+        confirmLabel: 'Generate report',
+        cancelLabel: 'Review setup',
+        variant: 'primary',
       })
-      .subscribe(() => this.loadReportJobs());
+      .subscribe(ok => {
+        if (!ok) return;
+        this.reportService
+          .generateReport({
+            templateId: this.selectedTemplateId,
+            reportType: this.designerReportType,
+            format: this.designerFormat,
+            requestId: `ui-${Date.now()}`,
+            scheduleAt: this.designerScheduleAt ? this.toApiLocalDateTime(this.designerScheduleAt) : undefined,
+            shareConfig: {
+              channels: this.designerShareChannels.length ? this.designerShareChannels : ['IN_APP'],
+              targetRoles: this.designerShareRoles.length ? this.designerShareRoles : ['PARENT', 'TEACHER', 'ADMIN'],
+              locales: this.designerShareLocales.length ? this.designerShareLocales : ['en'],
+              templateCode: 'REPORT_SHARED_DEFAULT',
+            },
+            filters,
+          })
+          .subscribe(() => this.loadReportJobs());
+      });
   }
 
   nextDesignerStep(): void {
@@ -1915,23 +2152,53 @@ export class ReportsComponent implements OnInit {
   }
 
   approveReportJob(job: ReportGenerationJob): void {
-    this.reportService
-      .approveReportJob(job.id, {
-        note: 'Approved by report reviewer',
-        idempotencyKey: this.buildIdempotencyKey('approve', job),
-        expectedUpdatedAt: job.updatedAt,
+    this.confirmDialog
+      .confirm({
+        title: 'Approve this generated report?',
+        message: 'Approving confirms report quality and allows publishing to stakeholders.',
+        details: [
+          `Job #${job.id} (${this.reportTypeLabel(job.reportType)})`,
+          `Current state: ${job.workflowState || 'DRAFT'}`,
+        ],
+        confirmLabel: 'Approve report',
+        cancelLabel: 'Cancel',
+        variant: 'warning',
       })
-      .subscribe(() => this.loadReportJobs());
+      .subscribe(ok => {
+        if (!ok) return;
+        this.reportService
+          .approveReportJob(job.id, {
+            note: 'Approved by report reviewer',
+            idempotencyKey: this.buildIdempotencyKey('approve', job),
+            expectedUpdatedAt: job.updatedAt,
+          })
+          .subscribe(() => this.loadReportJobs());
+      });
   }
 
   publishReportJob(job: ReportGenerationJob): void {
-    this.reportService
-      .publishReportJob(job.id, {
-        note: 'Published for stakeholder access',
-        idempotencyKey: this.buildIdempotencyKey('publish', job),
-        expectedUpdatedAt: job.updatedAt,
+    this.confirmDialog
+      .confirm({
+        title: 'Publish this report now?',
+        message: 'Publishing makes this approved report available to configured audiences.',
+        details: [
+          `Job #${job.id} (${this.reportTypeLabel(job.reportType)})`,
+          'Stakeholders may receive this via selected channels.',
+        ],
+        confirmLabel: 'Publish report',
+        cancelLabel: 'Not yet',
+        variant: 'danger',
       })
-      .subscribe(() => this.loadReportJobs());
+      .subscribe(ok => {
+        if (!ok) return;
+        this.reportService
+          .publishReportJob(job.id, {
+            note: 'Published for stakeholder access',
+            idempotencyKey: this.buildIdempotencyKey('publish', job),
+            expectedUpdatedAt: job.updatedAt,
+          })
+          .subscribe(() => this.loadReportJobs());
+      });
   }
 
   loadSnapshotsForJob(job: ReportGenerationJob): void {
@@ -1946,10 +2213,25 @@ export class ReportsComponent implements OnInit {
 
   rollbackSnapshot(snap: ReportPublicationSnapshot): void {
     if (this.selectedSnapshotJobId == null) return;
-    this.reportService.rollbackToSnapshot(this.selectedSnapshotJobId, snap.versionNo, 'Rollback from UI').subscribe(() => {
-      this.loadReportJobs();
-      this.loadSnapshotsForJob({ id: this.selectedSnapshotJobId } as ReportGenerationJob);
-    });
+    this.confirmDialog
+      .confirm({
+        title: `Rollback to version ${snap.versionNo}?`,
+        message: 'This will restore a previously published snapshot as the current live version.',
+        details: [
+          `Job #${this.selectedSnapshotJobId}`,
+          'Current live output will be replaced by the selected version.',
+        ],
+        confirmLabel: 'Rollback version',
+        cancelLabel: 'Cancel',
+        variant: 'danger',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        this.reportService.rollbackToSnapshot(this.selectedSnapshotJobId!, snap.versionNo, 'Rollback from UI').subscribe(() => {
+          this.loadReportJobs();
+          this.loadSnapshotsForJob({ id: this.selectedSnapshotJobId } as ReportGenerationJob);
+        });
+      });
   }
 
   loadAnalyticsPack(): void {
@@ -1976,19 +2258,36 @@ export class ReportsComponent implements OnInit {
   }
 
   saveAnalyticsConfig(): void {
-    this.reportService
-      .upsertAnalyticsPackConfig({
-        packCode: this.analyticsPackCode,
-        config: {
-          excellentPct: this.guardrailExcellentPct,
-          laggingPct: this.guardrailLaggingPct,
-          promotionMinAttendance: this.guardrailPromotionMinAttendance,
-        },
-        formulas: {
-          promotionFormula: this.guardrailPromotionFormula,
-        },
+    this.confirmDialog
+      .confirm({
+        title: 'Save insights guardrails?',
+        message: 'This updates thresholds and promotion formula used by report analytics.',
+        details: [
+          `Pack: ${this.analyticsPackCode}`,
+          `Excellent threshold: ${this.guardrailExcellentPct}%`,
+          `Lagging threshold: ${this.guardrailLaggingPct}%`,
+          `Min attendance: ${this.guardrailPromotionMinAttendance}%`,
+        ],
+        confirmLabel: 'Save guardrails',
+        cancelLabel: 'Continue editing',
+        variant: 'warning',
       })
-      .subscribe(() => this.loadAnalyticsPack());
+      .subscribe(ok => {
+        if (!ok) return;
+        this.reportService
+          .upsertAnalyticsPackConfig({
+            packCode: this.analyticsPackCode,
+            config: {
+              excellentPct: this.guardrailExcellentPct,
+              laggingPct: this.guardrailLaggingPct,
+              promotionMinAttendance: this.guardrailPromotionMinAttendance,
+            },
+            formulas: {
+              promotionFormula: this.guardrailPromotionFormula,
+            },
+          })
+          .subscribe(() => this.loadAnalyticsPack());
+      });
   }
 
   saveTemplateDraft(): void {
@@ -2006,11 +2305,42 @@ export class ReportsComponent implements OnInit {
         required: ['classId', 'examId'],
       },
     };
-    this.reportService.upsertTemplate(payload).subscribe(() => this.loadReportDesignerData());
+    this.confirmDialog
+      .confirm({
+        title: 'Save report template draft?',
+        message: 'This updates the template definition used by future report generation jobs.',
+        details: [
+          `Template code: ${payload.templateCode || '-'}`,
+          `Template name: ${payload.name || '-'}`,
+          `Default format: ${payload.defaultFormat || '-'}`,
+        ],
+        confirmLabel: 'Save template',
+        cancelLabel: 'Review template',
+        variant: 'primary',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        this.reportService.upsertTemplate(payload).subscribe(() => this.loadReportDesignerData());
+      });
   }
 
   seedDefaultReportPacks(): void {
-    this.reportService.seedDefaultReportPacks().subscribe(() => this.loadReportDesignerData());
+    this.confirmDialog
+      .confirm({
+        title: 'Seed default report packs?',
+        message: 'This will add or refresh default board report packs (CBSE, ICSE, State).',
+        details: [
+          'Useful when starting setup or restoring baseline templates.',
+          'Custom templates remain available for further editing.',
+        ],
+        confirmLabel: 'Seed packs',
+        cancelLabel: 'Cancel',
+        variant: 'warning',
+      })
+      .subscribe(ok => {
+        if (!ok) return;
+        this.reportService.seedDefaultReportPacks().subscribe(() => this.loadReportDesignerData());
+      });
   }
 
   private applyTemplateSelection(template: ReportTemplateDefinition): void {
@@ -2045,5 +2375,35 @@ export class ReportsComponent implements OnInit {
       return [];
     }
     return this.classes.find(cls => cls.id === classId)?.sections ?? [];
+  }
+
+  private humanizeReportCardKey(key: string): string {
+    return String(key ?? '')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  private humanizeReportCardValue(value: unknown): string {
+    if (value == null) {
+      return '—';
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    if (typeof value === 'string') {
+      return value;
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  private normalizeReportLocale(raw: string | undefined): string {
+    const normalized = String(raw || 'en').trim().toLowerCase();
+    return normalized.startsWith('hi') ? 'hi' : 'en';
   }
 }

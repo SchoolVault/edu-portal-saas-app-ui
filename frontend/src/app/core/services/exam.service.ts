@@ -10,6 +10,9 @@ import {
   ExamEventLog,
   ExamNotificationJob,
   ExamScheduleSlot,
+  ExamModuleConfigHistoryItem,
+  ExamModuleConfig,
+  ExamModuleConfigKey,
   ExamTemplate,
   MarkRecord,
   MarksEntryScopeRow
@@ -76,7 +79,12 @@ export class ExamService {
         }
         const st = opts.status?.trim().toLowerCase();
         if (st) {
-          rows = rows.filter(e => (e.status || '').toLowerCase() === st);
+          const isLifecycleStatus = st === 'upcoming' || st === 'ongoing' || st === 'completed' || st === 'cancelled';
+          rows = rows.filter(e =>
+            isLifecycleStatus
+              ? (e.status || '').toLowerCase() === st
+              : (e.workflowState || '').toLowerCase() === st
+          );
         }
         return sliceToPage(rows, page, size);
       })
@@ -198,6 +206,10 @@ export class ExamService {
       const payload: Record<string, unknown> = {
         name: exam.name,
         examType: exam.examType?.trim() || null,
+        boardCode: exam.boardCode?.trim() || null,
+        sessionType: exam.sessionType?.trim() || null,
+        termCode: exam.termCode?.trim() || null,
+        assessmentKind: exam.assessmentKind?.trim() || null,
         markingScheme: exam.markingScheme?.trim() || null,
         gradingConfig: exam.gradingConfig ?? null,
         academicYearId: exam.academicYearId ?? null,
@@ -223,6 +235,44 @@ export class ExamService {
     this.exams = [row, ...this.exams];
     this.mockSchedule[row.id] = [];
     return of(this.copyExam(row)).pipe(delay(400));
+  }
+
+  updateExam(examId: number, exam: Exam, classScopes?: ExamClassScope[]): Observable<Exam> {
+    if (!runtimeConfig.useMocks) {
+      const payload: Record<string, unknown> = {
+        name: exam.name,
+        examType: exam.examType?.trim() || null,
+        boardCode: exam.boardCode?.trim() || null,
+        sessionType: exam.sessionType?.trim() || null,
+        termCode: exam.termCode?.trim() || null,
+        assessmentKind: exam.assessmentKind?.trim() || null,
+        markingScheme: exam.markingScheme?.trim() || null,
+        gradingConfig: exam.gradingConfig ?? null,
+        academicYearId: exam.academicYearId ?? null,
+        startDate: exam.startDate || null,
+        endDate: exam.endDate || null,
+        classIds: exam.classIds ?? []
+      };
+      if (classScopes && classScopes.length) {
+        payload['classScopes'] = classScopes.map(s => ({
+          classId: s.classId,
+          sectionId: s.sectionId ?? null
+        }));
+      }
+      return this.api.put<any>(`/exams/${examId}`, payload).pipe(map(updated => this.normalizeExam(updated)));
+    }
+    const idx = this.exams.findIndex(e => e.id === examId);
+    if (idx < 0) {
+      return of(this.copyExam(exam)).pipe(delay(200));
+    }
+    const merged: Exam = {
+      ...this.exams[idx],
+      ...exam,
+      id: examId,
+      classScopes: classScopes?.length ? [...classScopes] : exam.classIds.map(cid => ({ classId: cid, sectionId: null }))
+    };
+    this.exams[idx] = merged;
+    return of(this.copyExam(merged)).pipe(delay(250));
   }
 
   saveMarks(examId: number, marks: MarkRecord[]): Observable<MarkRecord[]> {
@@ -322,6 +372,43 @@ export class ExamService {
     return this.transitionMockWorkflow(examId, 'FROZEN', note);
   }
 
+  getModuleConfigs(academicYearId: number): Observable<ExamModuleConfig[]> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<ExamModuleConfig[]>(`/exams/configs?academicYearId=${academicYearId}`);
+    }
+    return of([]).pipe(delay(80));
+  }
+
+  getModuleConfigHistory(academicYearId: number, configKey: ExamModuleConfigKey): Observable<ExamModuleConfigHistoryItem[]> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<ExamModuleConfigHistoryItem[]>(`/exams/configs/${configKey}/history?academicYearId=${academicYearId}`);
+    }
+    return of([]).pipe(delay(80));
+  }
+
+  upsertModuleConfig(
+    configKey: ExamModuleConfigKey,
+    academicYearId: number,
+    config: Record<string, unknown>,
+    note?: string
+  ): Observable<ExamModuleConfig> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.put<ExamModuleConfig>(`/exams/configs/${configKey}`, {
+        academicYearId,
+        config,
+        note: note?.trim() || null
+      });
+    }
+    return of({
+      id: Date.now(),
+      academicYearId,
+      configKey,
+      config,
+      versionNo: 1,
+      note
+    }).pipe(delay(120));
+  }
+
   private copyExam(e: Exam): Exam {
     return {
       ...e,
@@ -339,6 +426,10 @@ export class ExamService {
       ...exam,
       id: eid,
       examType: exam.examType ?? exam.exam_type ?? undefined,
+      boardCode: exam.boardCode ?? exam.board_code ?? undefined,
+      sessionType: exam.sessionType ?? exam.session_type ?? undefined,
+      termCode: exam.termCode ?? exam.term_code ?? undefined,
+      assessmentKind: exam.assessmentKind ?? exam.assessment_kind ?? undefined,
       markingScheme: exam.markingScheme ?? exam.marking_scheme ?? undefined,
       gradingConfig: exam.gradingConfig ?? exam.grading_config ?? undefined,
       academicYearId: exam.academicYearId != null ? Number(exam.academicYearId) : 0,

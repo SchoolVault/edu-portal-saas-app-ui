@@ -229,7 +229,7 @@ export class ReportService {
     return this.api.get(`/reports/fee-collection${qs ? `?${qs}` : ''}`);
   }
 
-  getReportCard(studentId: number, examId?: number): Observable<ReportCard> {
+  getReportCard(studentId: number, examId?: number, locale = 'en'): Observable<ReportCard> {
     if (runtimeConfig.useMocks) {
       const c = buildMockReportCard(studentId, examId ?? 2);
       return of({
@@ -237,10 +237,17 @@ export class ReportService {
         subjects: c.subjects.map(s => ({ ...s })),
       }).pipe();
     }
-    return this.api.get<any>(`/exams/report-card/${studentId}${examId != null ? `?examId=${examId}` : ''}`).pipe(
+    const qp = new URLSearchParams();
+    if (examId != null) qp.set('examId', String(examId));
+    qp.set('locale', locale);
+    return this.api.get<any>(`/exams/report-card/${studentId}?${qp.toString()}`).pipe(
       map(card => ({
         studentId: Number(card.studentId),
         studentName: card.studentName,
+        localeCode: card.localeCode ?? locale,
+        boardCode: card.boardCode,
+        termCode: card.termCode,
+        sections: card.sections ?? [],
         subjects: (card.subjects ?? []).map((mark: any) => ({
           ...mark,
           id: Number(mark.id),
