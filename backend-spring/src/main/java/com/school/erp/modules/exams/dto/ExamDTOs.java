@@ -286,6 +286,12 @@ public class ExamDTOs {
         private List<ExamScopeDtos.ScheduleSlotOut> scheduleSlots;
         private String workflowState;
         private String workflowNote;
+        private Boolean parentViewable;
+        private String parentViewableReason;
+        private Integer parentCountdownDays;
+        private Integer parentSubjectCount;
+        private Double parentAveragePercentage;
+        private String parentOverallGrade;
 
 
         public static class ExamResponseBuilder {
@@ -489,6 +495,54 @@ public class ExamDTOs {
 
         public void setWorkflowNote(String workflowNote) {
             this.workflowNote = workflowNote;
+        }
+
+        public Boolean getParentViewable() {
+            return parentViewable;
+        }
+
+        public void setParentViewable(Boolean parentViewable) {
+            this.parentViewable = parentViewable;
+        }
+
+        public String getParentViewableReason() {
+            return parentViewableReason;
+        }
+
+        public void setParentViewableReason(String parentViewableReason) {
+            this.parentViewableReason = parentViewableReason;
+        }
+
+        public Integer getParentCountdownDays() {
+            return parentCountdownDays;
+        }
+
+        public void setParentCountdownDays(Integer parentCountdownDays) {
+            this.parentCountdownDays = parentCountdownDays;
+        }
+
+        public Integer getParentSubjectCount() {
+            return parentSubjectCount;
+        }
+
+        public void setParentSubjectCount(Integer parentSubjectCount) {
+            this.parentSubjectCount = parentSubjectCount;
+        }
+
+        public Double getParentAveragePercentage() {
+            return parentAveragePercentage;
+        }
+
+        public void setParentAveragePercentage(Double parentAveragePercentage) {
+            this.parentAveragePercentage = parentAveragePercentage;
+        }
+
+        public String getParentOverallGrade() {
+            return parentOverallGrade;
+        }
+
+        public void setParentOverallGrade(String parentOverallGrade) {
+            this.parentOverallGrade = parentOverallGrade;
         }
 
         public void setId(final Long id) {
@@ -1567,6 +1621,55 @@ public class ExamDTOs {
         public void setResultsPublished(final boolean resultsPublished) {
             this.resultsPublished = resultsPublished;
         }
+    }
+
+    /**
+     * Parent v2 projection: backend-owned exam card policy + compact result summary.
+     */
+    public static class ParentExamCardResponse {
+        private Long id;
+        private String name;
+        private Long academicYearId;
+        private String startDate;
+        private String endDate;
+        private String status;
+        private String workflowState;
+        private boolean resultsPublished;
+        private boolean viewable;
+        private String viewableReason;
+        private Integer countdownDays;
+        private Integer subjectCount;
+        private Double averagePercentage;
+        private String overallGrade;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public Long getAcademicYearId() { return academicYearId; }
+        public void setAcademicYearId(Long academicYearId) { this.academicYearId = academicYearId; }
+        public String getStartDate() { return startDate; }
+        public void setStartDate(String startDate) { this.startDate = startDate; }
+        public String getEndDate() { return endDate; }
+        public void setEndDate(String endDate) { this.endDate = endDate; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getWorkflowState() { return workflowState; }
+        public void setWorkflowState(String workflowState) { this.workflowState = workflowState; }
+        public boolean isResultsPublished() { return resultsPublished; }
+        public void setResultsPublished(boolean resultsPublished) { this.resultsPublished = resultsPublished; }
+        public boolean isViewable() { return viewable; }
+        public void setViewable(boolean viewable) { this.viewable = viewable; }
+        public String getViewableReason() { return viewableReason; }
+        public void setViewableReason(String viewableReason) { this.viewableReason = viewableReason; }
+        public Integer getCountdownDays() { return countdownDays; }
+        public void setCountdownDays(Integer countdownDays) { this.countdownDays = countdownDays; }
+        public Integer getSubjectCount() { return subjectCount; }
+        public void setSubjectCount(Integer subjectCount) { this.subjectCount = subjectCount; }
+        public Double getAveragePercentage() { return averagePercentage; }
+        public void setAveragePercentage(Double averagePercentage) { this.averagePercentage = averagePercentage; }
+        public String getOverallGrade() { return overallGrade; }
+        public void setOverallGrade(String overallGrade) { this.overallGrade = overallGrade; }
     }
 
     public static class TemplateComponentIn {

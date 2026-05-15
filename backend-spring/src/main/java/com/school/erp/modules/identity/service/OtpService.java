@@ -79,6 +79,9 @@ public class OtpService {
     @Value("${app.sms.msg91.templates.password-reset:}")
     private String passwordResetOtpTemplateId;
 
+    @Value("${app.sms.msg91.templates.forgot-password:${app.sms.msg91.templates.password-reset:}}")
+    private String forgotPasswordOtpTemplateId;
+
     @Value("${app.sms.msg91.templates.signup:}")
     private String signupOtpTemplateId;
 
@@ -246,7 +249,9 @@ public class OtpService {
     private String resolveTemplateIdByPurpose(OtpPurpose purpose) {
         String resolved = switch (purpose) {
             case LOGIN -> loginOtpTemplateId;
-            case PASSWORD_RESET -> passwordResetOtpTemplateId;
+            case PASSWORD_RESET -> (forgotPasswordOtpTemplateId != null && !forgotPasswordOtpTemplateId.isBlank()
+                    ? forgotPasswordOtpTemplateId
+                    : passwordResetOtpTemplateId);
             case SIGNUP -> signupOtpTemplateId;
             case PHONE_VERIFY -> phoneVerifyOtpTemplateId;
             case EMAIL_VERIFY -> emailVerifyOtpTemplateId;

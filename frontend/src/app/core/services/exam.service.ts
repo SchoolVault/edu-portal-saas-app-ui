@@ -452,6 +452,28 @@ export class ExamService {
       resultsPublished: !!exam.resultsPublished,
       workflowState: exam.workflowState ?? exam.workflow_state ?? undefined,
       workflowNote: exam.workflowNote ?? exam.workflow_note ?? undefined,
+      parentViewable:
+        exam.parentViewable != null ? !!exam.parentViewable : exam.parent_viewable != null ? !!exam.parent_viewable : undefined,
+      parentViewableReason: exam.parentViewableReason ?? exam.parent_viewable_reason ?? undefined,
+      parentCountdownDays:
+        exam.parentCountdownDays != null
+          ? Number(exam.parentCountdownDays)
+          : exam.parent_countdown_days != null
+            ? Number(exam.parent_countdown_days)
+            : undefined,
+      parentSubjectCount:
+        exam.parentSubjectCount != null
+          ? Number(exam.parentSubjectCount)
+          : exam.parent_subject_count != null
+            ? Number(exam.parent_subject_count)
+            : undefined,
+      parentAveragePercentage:
+        exam.parentAveragePercentage != null
+          ? Number(exam.parentAveragePercentage)
+          : exam.parent_average_percentage != null
+            ? Number(exam.parent_average_percentage)
+            : undefined,
+      parentOverallGrade: exam.parentOverallGrade ?? exam.parent_overall_grade ?? undefined,
       tenantId: exam.tenantId ?? ''
     };
   }

@@ -357,7 +357,8 @@ app:
       otp-template-id: ${APP_SMS_MSG91_OTP_TEMPLATE_ID:}
       templates:
         login: ${APP_SMS_MSG91_TEMPLATE_LOGIN:${APP_SMS_MSG91_OTP_TEMPLATE_ID:}}
-        password-reset: ${APP_SMS_MSG91_TEMPLATE_PASSWORD_RESET:${APP_SMS_MSG91_OTP_TEMPLATE_ID:}}
+        forgot-password: ${APP_SMS_MSG91_TEMPLATE_FORGOT_PASSWORD:}
+        password-reset: ${APP_SMS_MSG91_TEMPLATE_PASSWORD_RESET:${APP_SMS_MSG91_TEMPLATE_FORGOT_PASSWORD:}}
         signup: ${APP_SMS_MSG91_TEMPLATE_SIGNUP:${APP_SMS_MSG91_OTP_TEMPLATE_ID:}}
         phone-verify: ${APP_SMS_MSG91_TEMPLATE_PHONE_VERIFY:${APP_SMS_MSG91_OTP_TEMPLATE_ID:}}
         email-verify: ${APP_SMS_MSG91_TEMPLATE_EMAIL_VERIFY:${APP_SMS_MSG91_OTP_TEMPLATE_ID:}}
@@ -476,6 +477,16 @@ app:
       microcache-ttl-seconds: ${APP_REPORTS_MICROCACHE_TTL_SECONDS:15}
       # Real-time guard for dashboard APIs. Use exact names or wildcard prefixes (e.g., DASHBOARD_*).
       realtime-snapshot-types: ${APP_REPORTS_REALTIME_SNAPSHOT_TYPES:DASHBOARD_*}
+
+  exams:
+    report-card:
+      # Parent sync PDF path threshold; larger payloads should use async report job endpoint.
+      sync-max-subjects: ${APP_EXAMS_REPORT_CARD_SYNC_MAX_SUBJECTS:25}
+    config-pack:
+      # Declarative default pack selectors used by school onboarding/governance (future-safe).
+      default-board-pack: ${APP_EXAMS_CONFIG_DEFAULT_BOARD_PACK:CBSE_CORE}
+      default-region-pack: ${APP_EXAMS_CONFIG_DEFAULT_REGION_PACK:INDIA_GENERAL}
+      default-school-type-pack: ${APP_EXAMS_CONFIG_DEFAULT_SCHOOL_TYPE_PACK:K12_GENERAL}
 
   lifecycle:
     purge:

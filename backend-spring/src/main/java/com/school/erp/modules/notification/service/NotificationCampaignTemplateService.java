@@ -27,6 +27,18 @@ public class NotificationCampaignTemplateService {
         this.templateRegistry.registerTemplate("SMS", "PTM_SCHEDULED", "en", "PTM update: {{message}}");
         this.templateRegistry.registerTemplate("SMS", "EXAM_PUBLISHED", "en", "Exam update: {{message}}");
         this.templateRegistry.registerTemplate("SMS", "EXAM_RESULT_PUBLISHED", "en", "Result update: {{message}}");
+        this.templateRegistry.registerTemplate("SMS", "EXAM_TIMETABLE_PUBLISHED", "en", "Timetable published: {{examName}} ({{dateRange}})");
+        this.templateRegistry.registerTemplate("SMS", "EXAM_TIMETABLE_UPDATED", "en", "Timetable updated: {{examName}} ({{dateRange}})");
+        this.templateRegistry.registerTemplate("SMS", "EXAM_RESULTS_PUBLISHED", "en", "Results published: {{examName}}");
+        this.templateRegistry.registerTemplate("SMS", "EXAM_TIMETABLE_PUBLISHED", "hi", "समय सारणी प्रकाशित: {{examName}} ({{dateRange}})");
+        this.templateRegistry.registerTemplate("SMS", "EXAM_TIMETABLE_UPDATED", "hi", "समय सारणी अपडेट: {{examName}} ({{dateRange}})");
+        this.templateRegistry.registerTemplate("SMS", "EXAM_RESULTS_PUBLISHED", "hi", "परिणाम प्रकाशित: {{examName}}");
+        this.templateRegistry.registerTemplate("EMAIL", "EXAM_TIMETABLE_PUBLISHED", "en", "{{message}}");
+        this.templateRegistry.registerTemplate("EMAIL", "EXAM_TIMETABLE_UPDATED", "en", "{{message}}");
+        this.templateRegistry.registerTemplate("EMAIL", "EXAM_RESULTS_PUBLISHED", "en", "{{message}}");
+        this.templateRegistry.registerTemplate("IN_APP", "EXAM_TIMETABLE_PUBLISHED", "en", "{{message}}");
+        this.templateRegistry.registerTemplate("IN_APP", "EXAM_TIMETABLE_UPDATED", "en", "{{message}}");
+        this.templateRegistry.registerTemplate("IN_APP", "EXAM_RESULTS_PUBLISHED", "en", "{{message}}");
         this.templateRegistry.registerTemplate("SMS", "EVENT_REMINDER_1D", "en", "Reminder: {{message}}");
         this.templateRegistry.registerTemplate("SMS", "EVENT_REMINDER_1H", "en", "Starts soon: {{message}}");
         this.templateRegistry.registerTemplate("SMS", "EVENT_REMINDER_1D", "hi", "स्मरण: {{message}}");
@@ -62,6 +74,16 @@ public class NotificationCampaignTemplateService {
     public boolean hasActiveSmsTemplateWithDlt(String eventType, String locale) {
         Optional<NotificationCampaignTemplate> t = resolveTemplateEntityFromDb("SMS", eventType, locale);
         return t.isPresent() && t.get().getDltTemplateId() != null && !t.get().getDltTemplateId().isBlank();
+    }
+
+    public Optional<NotificationCampaignTemplate> resolveActiveSmsTemplateWithDlt(String eventType, String locale) {
+        Optional<NotificationCampaignTemplate> exact = resolveTemplateEntityFromDb("SMS", eventType, locale)
+                .filter(t -> t.getDltTemplateId() != null && !t.getDltTemplateId().isBlank());
+        if (exact.isPresent()) {
+            return exact;
+        }
+        return resolveTemplateEntityFromDb("SMS", eventType, "en")
+                .filter(t -> t.getDltTemplateId() != null && !t.getDltTemplateId().isBlank());
     }
 
     @Transactional(readOnly = true)

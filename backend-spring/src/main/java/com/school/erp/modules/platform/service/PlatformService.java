@@ -83,6 +83,7 @@ public class PlatformService {
     private final ReportGenerationJobRepository reportGenerationJobRepository;
     private final ReportBinaryStorageService reportBinaryStorageService;
     private final ReportPerformanceMetricsService reportPerformanceMetricsService;
+    private final ExamArchiveGovernanceService examArchiveGovernanceService;
     private final DataSource dataSource;
     private final JdbcTemplate jdbcTemplate;
 
@@ -287,6 +288,92 @@ public class PlatformService {
         response.setSourceStats(loadArchiveSourceStats(jdbcTemplate));
         response.setDailyTrend(loadArchiveDailyTrend(jdbcTemplate));
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public List<PlatformDTOs.ExamArchivePolicyResponse> getExamArchivePolicies(String tenantId) {
+        return examArchiveGovernanceService.listPolicies(tenantId).stream().map(this::toPolicyResponse).toList();
+    }
+
+    @Transactional
+    public List<PlatformDTOs.ExamArchivePolicyResponse> updateExamArchivePolicies(
+            String tenantId,
+            List<PlatformDTOs.ExamArchivePolicyRequest> requestRows) {
+        return examArchiveGovernanceService.upsertPolicies(tenantId, requestRows).stream()
+                .map(this::toPolicyResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PlatformDTOs.ExamArchiveLegalHoldResponse> getExamArchiveLegalHolds(String tenantId) {
+        return examArchiveGovernanceService.listLegalHolds(tenantId);
+    }
+
+    @Transactional
+    public List<PlatformDTOs.ExamArchiveLegalHoldResponse> updateExamArchiveLegalHold(
+            String tenantId,
+            PlatformDTOs.ExamArchiveLegalHoldRequest request) {
+        return examArchiveGovernanceService.upsertLegalHold(tenantId, request);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PlatformDTOs.ExamArchiveManifestRow> getExamArchiveManifest(String tenantId, Long academicYearId) {
+        return examArchiveGovernanceService.listManifest(tenantId, academicYearId);
+    }
+
+    @Transactional
+    public PlatformDTOs.ExamArchiveRestoreResponse restoreExamArchiveYear(
+            String tenantId,
+            Long academicYearId,
+            boolean dryRun) {
+        return examArchiveGovernanceService.restoreAcademicYear(tenantId, academicYearId, dryRun);
+    }
+
+    @Transactional(readOnly = true)
+    public PlatformDTOs.ExamSchoolRuntimePolicyResponse getExamRuntimePolicy(String tenantId) {
+        return examArchiveGovernanceService.getRuntimePolicy(tenantId);
+    }
+
+    @Transactional
+    public PlatformDTOs.ExamSchoolRuntimePolicyResponse updateExamRuntimePolicy(
+            String tenantId,
+            PlatformDTOs.ExamSchoolRuntimePolicyRequest request) {
+        return examArchiveGovernanceService.upsertRuntimePolicy(tenantId, request);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PlatformDTOs.ExamProfilePackRow> getEffectiveExamProfilePacks(String tenantId) {
+        return examArchiveGovernanceService.getEffectivePacks(tenantId);
+    }
+
+    @Transactional
+    public PlatformDTOs.ExamArchiveRestoreRequestRow requestExamArchiveRestore(
+            String tenantId,
+            Long requestedByUserId,
+            PlatformDTOs.ExamArchiveRestoreRequestCreate request) {
+        return examArchiveGovernanceService.submitRestoreRequest(tenantId, requestedByUserId, request);
+    }
+
+    @Transactional
+    public PlatformDTOs.ExamArchiveRestoreRequestRow approveOrRejectExamArchiveRestore(
+            Long requestId,
+            Long reviewerUserId,
+            PlatformDTOs.ExamArchiveRestoreApprovalRequest request) {
+        return examArchiveGovernanceService.approveOrRejectRestoreRequest(requestId, reviewerUserId, request);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PlatformDTOs.ExamArchiveRestoreRequestRow> listExamArchiveRestoreRequests(String tenantId, String status) {
+        return examArchiveGovernanceService.listRestoreRequests(tenantId, status);
+    }
+
+    private PlatformDTOs.ExamArchivePolicyResponse toPolicyResponse(ExamArchiveGovernanceService.PolicyConfig row) {
+        PlatformDTOs.ExamArchivePolicyResponse out = new PlatformDTOs.ExamArchivePolicyResponse();
+        out.setObjectType(row.objectType());
+        out.setEnabled(row.enabled());
+        out.setRetentionDays(row.retentionDays());
+        out.setVerificationMode(row.verificationMode());
+        return out;
     }
 
     private PlatformDTOs.ComponentHealth buildDbPoolHealthComponent() {
@@ -1251,6 +1338,7 @@ public class PlatformService {
             ReportGenerationJobRepository reportGenerationJobRepository,
             ReportBinaryStorageService reportBinaryStorageService,
             ReportPerformanceMetricsService reportPerformanceMetricsService,
+            ExamArchiveGovernanceService examArchiveGovernanceService,
             DataSource dataSource
     ) {
         this.tenantConfigRepository = tenantConfigRepository;
@@ -1267,6 +1355,7 @@ public class PlatformService {
         this.reportGenerationJobRepository = reportGenerationJobRepository;
         this.reportBinaryStorageService = reportBinaryStorageService;
         this.reportPerformanceMetricsService = reportPerformanceMetricsService;
+        this.examArchiveGovernanceService = examArchiveGovernanceService;
         this.dataSource = dataSource;
         this.jdbcTemplate = new JdbcTemplate(dataSource);
     }

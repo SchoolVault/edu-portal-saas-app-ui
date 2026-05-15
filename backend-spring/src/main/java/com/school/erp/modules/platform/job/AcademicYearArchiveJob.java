@@ -3,6 +3,7 @@ package com.school.erp.modules.platform.job;
 import com.school.erp.modules.academic.entity.AcademicYear;
 import com.school.erp.modules.academic.repository.AcademicYearRepository;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
+import com.school.erp.modules.platform.service.ExamArchiveGovernanceService;
 import com.school.erp.tenant.TenantScopedExecution;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +41,7 @@ public class AcademicYearArchiveJob {
     private final TenantConfigRepository tenantConfigRepository;
     private final AcademicYearRepository academicYearRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final ExamArchiveGovernanceService examArchiveGovernanceService;
 
     @Value("${app.lifecycle.academic-year-archive.enabled:false}")
     private boolean enabled;
@@ -59,10 +61,12 @@ public class AcademicYearArchiveJob {
     public AcademicYearArchiveJob(
             TenantConfigRepository tenantConfigRepository,
             AcademicYearRepository academicYearRepository,
-            JdbcTemplate jdbcTemplate) {
+            JdbcTemplate jdbcTemplate,
+            ExamArchiveGovernanceService examArchiveGovernanceService) {
         this.tenantConfigRepository = tenantConfigRepository;
         this.academicYearRepository = academicYearRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.examArchiveGovernanceService = examArchiveGovernanceService;
     }
 
     @Scheduled(cron = "${app.lifecycle.academic-year-archive.cron:0 40 2 * * SUN}")
@@ -93,6 +97,7 @@ public class AcademicYearArchiveJob {
     }
 
     private int archiveTenantClosedYears(String tenantId, LocalDate cutoffDate) {
+        var policyMap = examArchiveGovernanceService.loadPolicyMap(tenantId);
         List<AcademicYear> closedYears = academicYearRepository.findByTenantIdAndIsDeletedFalseOrderByEndDateAsc(tenantId).stream()
                 .filter(year -> !Boolean.TRUE.equals(year.getIsCurrent()))
                 .filter(year -> year.getEndDate() != null && year.getEndDate().isBefore(cutoffDate))
@@ -103,7 +108,19 @@ public class AcademicYearArchiveJob {
 
         int movedRows = 0;
         for (AcademicYear year : closedYears) {
+            if (examArchiveGovernanceService.isLegalHoldActive(tenantId, year.getId())) {
+                log.info("academic_year_archive skipped tenantId={} academicYearId={} reason=legal_hold_active", tenantId, year.getId());
+                continue;
+            }
             for (TableArchivePlan tablePlan : TABLE_PLANS) {
+                var policy = policyMap.get(tablePlan.sourceTable().toLowerCase());
+                if (policy != null && !policy.enabled()) {
+                    continue;
+                }
+                int retentionDays = policy != null ? Math.max(0, policy.retentionDays()) : Math.max(0, graceDaysAfterEnd);
+                if (year.getEndDate() == null || !year.getEndDate().isBefore(LocalDate.now().minusDays(retentionDays))) {
+                    continue;
+                }
                 movedRows += archiveYearForTable(tenantId, year.getId(), tablePlan);
             }
         }
@@ -130,10 +147,32 @@ public class AcademicYearArchiveJob {
                 tenantId, academicYearId, Math.max(1, batchSize));
         int moved = Math.min(inserted, deleted);
         if (moved > 0) {
+            examArchiveGovernanceService.recordArchiveManifest(tenantId, academicYearId, tablePlan.sourceTable(), tablePlan.archiveTable(), moved);
+            long sourceRows = countRows(tablePlan.sourceTable(), tenantId, academicYearId);
+            long archiveRows = countRows(tablePlan.archiveTable(), tenantId, academicYearId);
+            examArchiveGovernanceService.recordVerification(
+                    tenantId,
+                    academicYearId,
+                    tablePlan.sourceTable(),
+                    tablePlan.archiveTable(),
+                    "ARCHIVE",
+                    sourceRows,
+                    archiveRows,
+                    sourceRows == 0 ? "OK" : "WARN",
+                    sourceRows == 0 ? "Source rows drained after archive batch" : "Source rows still present, next tick will continue");
             log.info("academic_year_archive movedRows={} tenantId={} academicYearId={} table={}",
                     moved, tenantId, academicYearId, tablePlan.sourceTable());
         }
         return moved;
+    }
+
+    private long countRows(String tableName, String tenantId, Long academicYearId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM " + tableName + " WHERE tenant_id = ? AND academic_year_id = ?",
+                Long.class,
+                tenantId,
+                academicYearId);
+        return count != null ? count : 0L;
     }
 
     private boolean archiveTableExists(String archiveTableName) {

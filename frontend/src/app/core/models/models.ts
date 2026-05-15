@@ -466,6 +466,15 @@ export interface ParentExamSummary {
   resultsPublished: boolean;
 }
 
+export interface ParentExamNotificationPreference {
+  inAppEnabled: boolean;
+  smsEnabled: boolean;
+  emailEnabled: boolean;
+  digestEnabled: boolean;
+  quietHoursStart?: string;
+  quietHoursEnd?: string;
+}
+
 export interface ExamScheduleSlot {
   id?: number;
   /** Present when slot is nested under a known exam in UI mocks. */
@@ -510,6 +519,13 @@ export interface Exam {
   /** DRAFT | PENDING_APPROVAL | APPROVED | PUBLISHED | FROZEN | REJECTED */
   workflowState?: string;
   workflowNote?: string;
+  /** Backend-owned parent policy + summary projection. */
+  parentViewable?: boolean;
+  parentViewableReason?: string;
+  parentCountdownDays?: number;
+  parentSubjectCount?: number;
+  parentAveragePercentage?: number;
+  parentOverallGrade?: string;
   tenantId: string;
 }
 

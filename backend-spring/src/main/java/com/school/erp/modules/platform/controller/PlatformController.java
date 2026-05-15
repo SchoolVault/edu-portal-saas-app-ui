@@ -61,6 +61,96 @@ public class PlatformController {
         return ResponseEntity.ok(ApiResponse.ok(platformService.getLifecycleObservability()));
     }
 
+    @GetMapping("/schools/{tenantId}/exam-archive/policies")
+    @Operation(summary = "Exam archive retention policy for a school")
+    public ResponseEntity<ApiResponse<List<PlatformDTOs.ExamArchivePolicyResponse>>> getExamArchivePolicies(
+            @PathVariable String tenantId) {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.getExamArchivePolicies(tenantId)));
+    }
+
+    @PutMapping("/schools/{tenantId}/exam-archive/policies")
+    @Operation(summary = "Upsert exam archive retention policy rows")
+    public ResponseEntity<ApiResponse<List<PlatformDTOs.ExamArchivePolicyResponse>>> updateExamArchivePolicies(
+            @PathVariable String tenantId,
+            @RequestBody List<PlatformDTOs.ExamArchivePolicyRequest> request) {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.updateExamArchivePolicies(tenantId, request), "Exam archive policy updated"));
+    }
+
+    @GetMapping("/schools/{tenantId}/exam-archive/legal-holds")
+    @Operation(summary = "List exam archive legal-hold rows for a school")
+    public ResponseEntity<ApiResponse<List<PlatformDTOs.ExamArchiveLegalHoldResponse>>> getExamArchiveLegalHolds(
+            @PathVariable String tenantId) {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.getExamArchiveLegalHolds(tenantId)));
+    }
+
+    @PutMapping("/schools/{tenantId}/exam-archive/legal-holds")
+    @Operation(summary = "Create or update legal-hold for academic year")
+    public ResponseEntity<ApiResponse<List<PlatformDTOs.ExamArchiveLegalHoldResponse>>> updateExamArchiveLegalHold(
+            @PathVariable String tenantId,
+            @RequestBody PlatformDTOs.ExamArchiveLegalHoldRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.updateExamArchiveLegalHold(tenantId, request), "Exam legal-hold updated"));
+    }
+
+    @GetMapping("/schools/{tenantId}/exam-archive/manifests")
+    @Operation(summary = "List exam archive manifest rows")
+    public ResponseEntity<ApiResponse<List<PlatformDTOs.ExamArchiveManifestRow>>> getExamArchiveManifests(
+            @PathVariable String tenantId,
+            @RequestParam(required = false) Long academicYearId) {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.getExamArchiveManifest(tenantId, academicYearId)));
+    }
+
+    @GetMapping("/schools/{tenantId}/exam-runtime-policy")
+    @Operation(summary = "School-level exam runtime policy (visibility + pack selection)")
+    public ResponseEntity<ApiResponse<PlatformDTOs.ExamSchoolRuntimePolicyResponse>> getExamRuntimePolicy(
+            @PathVariable String tenantId) {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.getExamRuntimePolicy(tenantId)));
+    }
+
+    @PutMapping("/schools/{tenantId}/exam-runtime-policy")
+    @Operation(summary = "Update school-level exam runtime policy")
+    public ResponseEntity<ApiResponse<PlatformDTOs.ExamSchoolRuntimePolicyResponse>> updateExamRuntimePolicy(
+            @PathVariable String tenantId,
+            @RequestBody PlatformDTOs.ExamSchoolRuntimePolicyRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                platformService.updateExamRuntimePolicy(tenantId, request),
+                "Exam runtime policy updated"));
+    }
+
+    @GetMapping("/schools/{tenantId}/exam-profile-packs/effective")
+    @Operation(summary = "Effective board/region/school-type exam profile packs")
+    public ResponseEntity<ApiResponse<List<PlatformDTOs.ExamProfilePackRow>>> getEffectiveExamProfilePacks(
+            @PathVariable String tenantId) {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.getEffectiveExamProfilePacks(tenantId)));
+    }
+
+    @PostMapping("/schools/{tenantId}/exam-archive/restore-requests")
+    @Operation(summary = "Submit restore request (maker step)")
+    public ResponseEntity<ApiResponse<PlatformDTOs.ExamArchiveRestoreRequestRow>> submitExamArchiveRestoreRequest(
+            @PathVariable String tenantId,
+            @RequestBody PlatformDTOs.ExamArchiveRestoreRequestCreate request) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                platformService.requestExamArchiveRestore(tenantId, TenantContext.getUserId(), request),
+                "Restore request submitted for approval"));
+    }
+
+    @PostMapping("/exam-archive/restore-requests/{requestId}/review")
+    @Operation(summary = "Approve/reject restore request (checker step)")
+    public ResponseEntity<ApiResponse<PlatformDTOs.ExamArchiveRestoreRequestRow>> reviewExamArchiveRestoreRequest(
+            @PathVariable Long requestId,
+            @RequestBody PlatformDTOs.ExamArchiveRestoreApprovalRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                platformService.approveOrRejectExamArchiveRestore(requestId, TenantContext.getUserId(), request),
+                request.isApprove() ? "Restore request approved and executed" : "Restore request rejected"));
+    }
+
+    @GetMapping("/schools/{tenantId}/exam-archive/restore-requests")
+    @Operation(summary = "List restore requests for a school")
+    public ResponseEntity<ApiResponse<List<PlatformDTOs.ExamArchiveRestoreRequestRow>>> listExamArchiveRestoreRequests(
+            @PathVariable String tenantId,
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.listExamArchiveRestoreRequests(tenantId, status)));
+    }
+
     @PostMapping("/storage/reconcile")
     @Operation(summary = "Reconcile report file storage with DB metadata")
     public ResponseEntity<ApiResponse<PlatformDTOs.StorageReconciliationResponse>> reconcileStorage(

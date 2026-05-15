@@ -791,4 +791,254 @@ public class PlatformDTOs {
             this.dashboardSnapshotRowsMarked = dashboardSnapshotRowsMarked;
         }
     }
+
+    public static class ExamArchivePolicyRequest {
+        @NotBlank
+        private String objectType;
+        private boolean enabled = true;
+        private int retentionDays = 30;
+        private String verificationMode = "ROW_COUNT";
+
+        public String getObjectType() { return objectType; }
+        public void setObjectType(String objectType) { this.objectType = objectType; }
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public int getRetentionDays() { return retentionDays; }
+        public void setRetentionDays(int retentionDays) { this.retentionDays = retentionDays; }
+        public String getVerificationMode() { return verificationMode; }
+        public void setVerificationMode(String verificationMode) { this.verificationMode = verificationMode; }
+    }
+
+    public static class ExamArchivePolicyResponse {
+        private String objectType;
+        private boolean enabled;
+        private int retentionDays;
+        private String verificationMode;
+
+        public String getObjectType() { return objectType; }
+        public void setObjectType(String objectType) { this.objectType = objectType; }
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public int getRetentionDays() { return retentionDays; }
+        public void setRetentionDays(int retentionDays) { this.retentionDays = retentionDays; }
+        public String getVerificationMode() { return verificationMode; }
+        public void setVerificationMode(String verificationMode) { this.verificationMode = verificationMode; }
+    }
+
+    public static class ExamArchiveLegalHoldRequest {
+        private Long academicYearId;
+        private String holdScope = "EXAM_MODULE";
+        private String reason;
+        private boolean active = true;
+
+        public Long getAcademicYearId() { return academicYearId; }
+        public void setAcademicYearId(Long academicYearId) { this.academicYearId = academicYearId; }
+        public String getHoldScope() { return holdScope; }
+        public void setHoldScope(String holdScope) { this.holdScope = holdScope; }
+        public String getReason() { return reason; }
+        public void setReason(String reason) { this.reason = reason; }
+        public boolean isActive() { return active; }
+        public void setActive(boolean active) { this.active = active; }
+    }
+
+    public static class ExamArchiveLegalHoldResponse {
+        private Long id;
+        private Long academicYearId;
+        private String holdScope;
+        private String reason;
+        private boolean active;
+        private String createdAt;
+        private String updatedAt;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getAcademicYearId() { return academicYearId; }
+        public void setAcademicYearId(Long academicYearId) { this.academicYearId = academicYearId; }
+        public String getHoldScope() { return holdScope; }
+        public void setHoldScope(String holdScope) { this.holdScope = holdScope; }
+        public String getReason() { return reason; }
+        public void setReason(String reason) { this.reason = reason; }
+        public boolean isActive() { return active; }
+        public void setActive(boolean active) { this.active = active; }
+        public String getCreatedAt() { return createdAt; }
+        public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+        public String getUpdatedAt() { return updatedAt; }
+        public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
+    }
+
+    public static class ExamArchiveManifestRow {
+        private Long id;
+        private Long academicYearId;
+        private String sourceTable;
+        private String archiveTable;
+        private Long rowsMoved;
+        private String status;
+        private String verificationStatus;
+        private String verificationNotes;
+        private String startedAt;
+        private String completedAt;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getAcademicYearId() { return academicYearId; }
+        public void setAcademicYearId(Long academicYearId) { this.academicYearId = academicYearId; }
+        public String getSourceTable() { return sourceTable; }
+        public void setSourceTable(String sourceTable) { this.sourceTable = sourceTable; }
+        public String getArchiveTable() { return archiveTable; }
+        public void setArchiveTable(String archiveTable) { this.archiveTable = archiveTable; }
+        public Long getRowsMoved() { return rowsMoved; }
+        public void setRowsMoved(Long rowsMoved) { this.rowsMoved = rowsMoved; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getVerificationStatus() { return verificationStatus; }
+        public void setVerificationStatus(String verificationStatus) { this.verificationStatus = verificationStatus; }
+        public String getVerificationNotes() { return verificationNotes; }
+        public void setVerificationNotes(String verificationNotes) { this.verificationNotes = verificationNotes; }
+        public String getStartedAt() { return startedAt; }
+        public void setStartedAt(String startedAt) { this.startedAt = startedAt; }
+        public String getCompletedAt() { return completedAt; }
+        public void setCompletedAt(String completedAt) { this.completedAt = completedAt; }
+    }
+
+    public static class ExamArchiveRestoreResponse {
+        private String tenantId;
+        private Long academicYearId;
+        private boolean dryRun;
+        private int tablesProcessed;
+        private long rowsRestored;
+        private String processedAt;
+
+        public String getTenantId() { return tenantId; }
+        public void setTenantId(String tenantId) { this.tenantId = tenantId; }
+        public Long getAcademicYearId() { return academicYearId; }
+        public void setAcademicYearId(Long academicYearId) { this.academicYearId = academicYearId; }
+        public boolean isDryRun() { return dryRun; }
+        public void setDryRun(boolean dryRun) { this.dryRun = dryRun; }
+        public int getTablesProcessed() { return tablesProcessed; }
+        public void setTablesProcessed(int tablesProcessed) { this.tablesProcessed = tablesProcessed; }
+        public long getRowsRestored() { return rowsRestored; }
+        public void setRowsRestored(long rowsRestored) { this.rowsRestored = rowsRestored; }
+        public String getProcessedAt() { return processedAt; }
+        public void setProcessedAt(String processedAt) { this.processedAt = processedAt; }
+    }
+
+    public static class ExamSchoolRuntimePolicyRequest {
+        private String resultVisibilityPolicy = "STRICT_PUBLISH";
+        private String boardPackCode;
+        private String regionPackCode;
+        private String schoolTypePackCode;
+
+        public String getResultVisibilityPolicy() { return resultVisibilityPolicy; }
+        public void setResultVisibilityPolicy(String resultVisibilityPolicy) { this.resultVisibilityPolicy = resultVisibilityPolicy; }
+        public String getBoardPackCode() { return boardPackCode; }
+        public void setBoardPackCode(String boardPackCode) { this.boardPackCode = boardPackCode; }
+        public String getRegionPackCode() { return regionPackCode; }
+        public void setRegionPackCode(String regionPackCode) { this.regionPackCode = regionPackCode; }
+        public String getSchoolTypePackCode() { return schoolTypePackCode; }
+        public void setSchoolTypePackCode(String schoolTypePackCode) { this.schoolTypePackCode = schoolTypePackCode; }
+    }
+
+    public static class ExamSchoolRuntimePolicyResponse {
+        private String tenantId;
+        private String resultVisibilityPolicy;
+        private String boardPackCode;
+        private String regionPackCode;
+        private String schoolTypePackCode;
+
+        public String getTenantId() { return tenantId; }
+        public void setTenantId(String tenantId) { this.tenantId = tenantId; }
+        public String getResultVisibilityPolicy() { return resultVisibilityPolicy; }
+        public void setResultVisibilityPolicy(String resultVisibilityPolicy) { this.resultVisibilityPolicy = resultVisibilityPolicy; }
+        public String getBoardPackCode() { return boardPackCode; }
+        public void setBoardPackCode(String boardPackCode) { this.boardPackCode = boardPackCode; }
+        public String getRegionPackCode() { return regionPackCode; }
+        public void setRegionPackCode(String regionPackCode) { this.regionPackCode = regionPackCode; }
+        public String getSchoolTypePackCode() { return schoolTypePackCode; }
+        public void setSchoolTypePackCode(String schoolTypePackCode) { this.schoolTypePackCode = schoolTypePackCode; }
+    }
+
+    public static class ExamProfilePackRow {
+        private String packType;
+        private String packCode;
+        private Object config;
+        private boolean enabled;
+
+        public String getPackType() { return packType; }
+        public void setPackType(String packType) { this.packType = packType; }
+        public String getPackCode() { return packCode; }
+        public void setPackCode(String packCode) { this.packCode = packCode; }
+        public Object getConfig() { return config; }
+        public void setConfig(Object config) { this.config = config; }
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    }
+
+    public static class ExamArchiveRestoreRequestCreate {
+        private Long academicYearId;
+        private boolean dryRun = true;
+        private String requestNotes;
+
+        public Long getAcademicYearId() { return academicYearId; }
+        public void setAcademicYearId(Long academicYearId) { this.academicYearId = academicYearId; }
+        public boolean isDryRun() { return dryRun; }
+        public void setDryRun(boolean dryRun) { this.dryRun = dryRun; }
+        public String getRequestNotes() { return requestNotes; }
+        public void setRequestNotes(String requestNotes) { this.requestNotes = requestNotes; }
+    }
+
+    public static class ExamArchiveRestoreApprovalRequest {
+        private boolean approve;
+        private String reviewerNotes;
+
+        public boolean isApprove() { return approve; }
+        public void setApprove(boolean approve) { this.approve = approve; }
+        public String getReviewerNotes() { return reviewerNotes; }
+        public void setReviewerNotes(String reviewerNotes) { this.reviewerNotes = reviewerNotes; }
+    }
+
+    public static class ExamArchiveRestoreRequestRow {
+        private Long id;
+        private String tenantId;
+        private Long academicYearId;
+        private String status;
+        private boolean dryRun;
+        private String requestNotes;
+        private Long requestedByUserId;
+        private Long approvedByUserId;
+        private Long rejectedByUserId;
+        private String approvedAt;
+        private String rejectedAt;
+        private String createdAt;
+        private String updatedAt;
+        private Object restoreResult;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getTenantId() { return tenantId; }
+        public void setTenantId(String tenantId) { this.tenantId = tenantId; }
+        public Long getAcademicYearId() { return academicYearId; }
+        public void setAcademicYearId(Long academicYearId) { this.academicYearId = academicYearId; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public boolean isDryRun() { return dryRun; }
+        public void setDryRun(boolean dryRun) { this.dryRun = dryRun; }
+        public String getRequestNotes() { return requestNotes; }
+        public void setRequestNotes(String requestNotes) { this.requestNotes = requestNotes; }
+        public Long getRequestedByUserId() { return requestedByUserId; }
+        public void setRequestedByUserId(Long requestedByUserId) { this.requestedByUserId = requestedByUserId; }
+        public Long getApprovedByUserId() { return approvedByUserId; }
+        public void setApprovedByUserId(Long approvedByUserId) { this.approvedByUserId = approvedByUserId; }
+        public Long getRejectedByUserId() { return rejectedByUserId; }
+        public void setRejectedByUserId(Long rejectedByUserId) { this.rejectedByUserId = rejectedByUserId; }
+        public String getApprovedAt() { return approvedAt; }
+        public void setApprovedAt(String approvedAt) { this.approvedAt = approvedAt; }
+        public String getRejectedAt() { return rejectedAt; }
+        public void setRejectedAt(String rejectedAt) { this.rejectedAt = rejectedAt; }
+        public String getCreatedAt() { return createdAt; }
+        public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+        public String getUpdatedAt() { return updatedAt; }
+        public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
+        public Object getRestoreResult() { return restoreResult; }
+        public void setRestoreResult(Object restoreResult) { this.restoreResult = restoreResult; }
+    }
 }

@@ -1,0 +1,81 @@
+CREATE TABLE IF NOT EXISTS exam_archive_policy (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(50) NOT NULL,
+    object_type VARCHAR(80) NOT NULL,
+    enabled BIT(1) NOT NULL DEFAULT b'1',
+    retention_days INT NOT NULL DEFAULT 30,
+    verification_mode VARCHAR(40) NOT NULL DEFAULT 'ROW_COUNT',
+    is_active BIT(1) NOT NULL DEFAULT b'1',
+    is_deleted BIT(1) NOT NULL DEFAULT b'0',
+    deleted_at DATETIME NULL,
+    created_at DATETIME NULL,
+    updated_at DATETIME NULL,
+    created_by VARCHAR(100) NULL,
+    updated_by VARCHAR(100) NULL,
+    UNIQUE KEY uk_exam_archive_policy (tenant_id, object_type),
+    KEY idx_exam_archive_policy_tenant (tenant_id, is_deleted, is_active)
+);
+
+CREATE TABLE IF NOT EXISTS exam_archive_legal_hold (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(50) NOT NULL,
+    academic_year_id BIGINT NOT NULL,
+    hold_scope VARCHAR(80) NOT NULL DEFAULT 'EXAM_MODULE',
+    reason VARCHAR(500) NULL,
+    active BIT(1) NOT NULL DEFAULT b'1',
+    is_active BIT(1) NOT NULL DEFAULT b'1',
+    is_deleted BIT(1) NOT NULL DEFAULT b'0',
+    deleted_at DATETIME NULL,
+    created_at DATETIME NULL,
+    updated_at DATETIME NULL,
+    created_by VARCHAR(100) NULL,
+    updated_by VARCHAR(100) NULL,
+    UNIQUE KEY uk_exam_archive_hold (tenant_id, academic_year_id, hold_scope),
+    KEY idx_exam_archive_hold_lookup (tenant_id, active, is_deleted, academic_year_id)
+);
+
+CREATE TABLE IF NOT EXISTS exam_archive_manifest (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(50) NOT NULL,
+    academic_year_id BIGINT NOT NULL,
+    source_table VARCHAR(80) NOT NULL,
+    archive_table VARCHAR(80) NOT NULL,
+    rows_moved BIGINT NOT NULL DEFAULT 0,
+    checksum_token VARCHAR(160) NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'COMPLETED',
+    started_at DATETIME NOT NULL,
+    completed_at DATETIME NULL,
+    verification_status VARCHAR(30) NULL,
+    verification_notes VARCHAR(500) NULL,
+    is_active BIT(1) NOT NULL DEFAULT b'1',
+    is_deleted BIT(1) NOT NULL DEFAULT b'0',
+    deleted_at DATETIME NULL,
+    created_at DATETIME NULL,
+    updated_at DATETIME NULL,
+    created_by VARCHAR(100) NULL,
+    updated_by VARCHAR(100) NULL,
+    KEY idx_exam_archive_manifest_lookup (tenant_id, academic_year_id, source_table, status, is_deleted),
+    KEY idx_exam_archive_manifest_started (tenant_id, started_at, is_deleted)
+);
+
+CREATE TABLE IF NOT EXISTS exam_archive_verification_log (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(50) NOT NULL,
+    academic_year_id BIGINT NOT NULL,
+    source_table VARCHAR(80) NOT NULL,
+    archive_table VARCHAR(80) NOT NULL,
+    action_type VARCHAR(30) NOT NULL DEFAULT 'ARCHIVE',
+    source_rows BIGINT NOT NULL DEFAULT 0,
+    archive_rows BIGINT NOT NULL DEFAULT 0,
+    status VARCHAR(30) NOT NULL DEFAULT 'OK',
+    details VARCHAR(500) NULL,
+    verified_at DATETIME NOT NULL,
+    is_active BIT(1) NOT NULL DEFAULT b'1',
+    is_deleted BIT(1) NOT NULL DEFAULT b'0',
+    deleted_at DATETIME NULL,
+    created_at DATETIME NULL,
+    updated_at DATETIME NULL,
+    created_by VARCHAR(100) NULL,
+    updated_by VARCHAR(100) NULL,
+    KEY idx_exam_archive_verification_lookup (tenant_id, academic_year_id, source_table, action_type, verified_at)
+);
