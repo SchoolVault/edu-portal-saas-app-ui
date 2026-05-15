@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.slf4j.Logger;
@@ -56,6 +58,8 @@ public class NotificationOutboxService implements NotificationDispatchPort {
     private final ObjectProvider<MeterRegistry> meterRegistryProvider;
     private final CurrentAcademicYearResolver currentAcademicYearResolver;
     private final ObjectMapper objectMapper;
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public NotificationOutboxService(
             NotificationOutboxRepository repo,
@@ -168,6 +172,28 @@ public class NotificationOutboxService implements NotificationDispatchPort {
             repo.save(row);
         } catch (DataIntegrityViolationException ex) {
             log.debug("Outbox dedupe race for key={}: {}", dedupeKey, ex.getMessage());
+            if (entityManager != null && entityManager.contains(row)) {
+                entityManager.detach(row);
+            }
+        } catch (RuntimeException ex) {
+            if (entityManager != null) {
+                try {
+                    if (entityManager.contains(row)) {
+                        entityManager.detach(row);
+                    }
+                    entityManager.clear();
+                } catch (RuntimeException ignore) {
+                    // best-effort cleanup of persistence context after failed outbox insert
+                }
+            }
+            log.warn(
+                    "Outbox enqueue failed tenant={} event={} channel={} userId={} correlationId={} reason={}",
+                    tenantId,
+                    eventType,
+                    channelNorm,
+                    recipientUserId,
+                    correlationId,
+                    ex.toString());
         }
     }
 

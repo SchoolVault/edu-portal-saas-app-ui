@@ -16,11 +16,23 @@ import com.school.erp.modules.audit.service.AuditService;
 import com.school.erp.modules.exams.dto.ExamConfigDTOs;
 import com.school.erp.modules.exams.dto.ExamDTOs;
 import com.school.erp.modules.exams.dto.ExamScopeDtos;
+import com.school.erp.modules.exams.event.ExamNotificationRequestedEvent;
+import com.school.erp.modules.exams.pdf.ExamReportCardPdfService;
 import com.school.erp.modules.exams.entity.*;
 import com.school.erp.modules.exams.policy.ExamMarkingAccessPolicy;
 import com.school.erp.modules.exams.repository.*;
+import com.school.erp.modules.guardian.entity.Guardian;
+import com.school.erp.modules.guardian.entity.StudentGuardianMapping;
+import com.school.erp.modules.guardian.repository.GuardianRepository;
+import com.school.erp.modules.guardian.repository.StudentGuardianMappingRepository;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
+import com.school.erp.modules.notification.service.NotificationCampaignTemplateService;
+import com.school.erp.modules.notification.service.NotificationDispatchIsolationService;
+import com.school.erp.modules.auth.entity.User;
+import com.school.erp.modules.auth.repository.UserRepository;
+import com.school.erp.platform.port.DomainEventPublisher;
+import com.school.erp.platform.port.NotificationDispatchAttributes;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantScopedExecution;
 import com.school.erp.tenant.TenantQueryPolicy;
@@ -31,6 +43,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -44,6 +57,8 @@ import java.util.stream.Collectors;
 @Service
 public class ExamService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ExamService.class);
+    @Value("${app.exams.report-card.sync-max-subjects:25}")
+    private int parentReportCardSyncMaxSubjects;
     private final ExamRepository examRepo;
     private final MarkRecordRepository markRepo;
     private final ExamClassScopeRepository scopeRepo;
@@ -52,6 +67,9 @@ public class ExamService {
     private final SectionRepository sectionRepo;
     private final ExamMarkingAccessPolicy markingAccessPolicy;
     private final StudentRepository studentRepository;
+    private final StudentGuardianMappingRepository studentGuardianMappingRepository;
+    private final GuardianRepository guardianRepository;
+    private final UserRepository userRepository;
     private final ParentPortalExamPageCache parentPortalExamPageCache;
     private final ExamTemplateRepository templateRepository;
     private final ExamTemplateComponentRepository templateComponentRepository;
@@ -63,6 +81,13 @@ public class ExamService {
     private final ExamModuleConfigHistoryRepository examModuleConfigHistoryRepository;
     private final ExamBoardValidationPack examBoardValidationPack;
     private final ExamReportCardSchemaEngine reportCardSchemaEngine;
+    private final ExamReportCardPdfService examReportCardPdfService;
+    private final ExamNotificationPolicyService examNotificationPolicyService;
+    private final ExamRuntimePolicyService examRuntimePolicyService;
+    private final ParentExamNotificationService parentExamNotificationService;
+    private final NotificationCampaignTemplateService notificationCampaignTemplateService;
+    private final NotificationDispatchIsolationService notificationDispatchIsolationService;
+    private final DomainEventPublisher domainEventPublisher;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
     private final ObjectProvider<CacheService> cacheService;
@@ -122,13 +147,14 @@ public class ExamService {
                 .classIds(classIds)
                 .status(Enums.ExamStatus.UPCOMING)
                 .build();
+        String resolvedBoardCode = resolveBoardCodeForCreate(tenant, req.getBoardCode());
         examBoardValidationPack.validateExamDefinition(
-                req.getBoardCode(),
+                resolvedBoardCode,
                 req.getSessionType(),
                 req.getAssessmentKind(),
                 req.getTermCode());
         exam.setGradingConfigJson(buildGradingConfigJson(req));
-        exam.setBoardCode(examBoardValidationPack.normalizeOrDefault(req.getBoardCode(), "STATE"));
+        exam.setBoardCode(examBoardValidationPack.normalizeOrDefault(resolvedBoardCode, "STATE"));
         exam.setSessionType(examBoardValidationPack.normalizeOrDefault(req.getSessionType(), "PERIODIC"));
         exam.setTermCode(examBoardValidationPack.normalizeOrDefault(req.getTermCode(), "TERM1"));
         exam.setAssessmentKind(examBoardValidationPack.normalizeOrDefault(req.getAssessmentKind(), "THEORY"));
@@ -202,6 +228,9 @@ public class ExamService {
             exam.setPublishedAt(java.time.LocalDateTime.now());
         }
         examRepo.save(exam);
+        if (published) {
+            publishExamNotificationRequestedEvent(exam, "EXAM_RESULTS_PUBLISHED");
+        }
         auditService.logUpdate("EXAMS", (published ? "Published" : "Unpublished") + " exam results", examId, null, "resultsPublished=" + published);
         parentPortalExamPageCache.invalidateTenant(exam.getTenantId());
         refreshReportCaches();
@@ -232,6 +261,9 @@ public class ExamService {
             exam.setPublishedAt(java.time.LocalDateTime.now());
         }
         examRepo.save(exam);
+        if (publishNow) {
+            publishExamNotificationRequestedEvent(exam, "EXAM_TIMETABLE_PUBLISHED");
+        }
         auditService.logUpdate("EXAMS", "Approved exam " + (publishNow ? "and published" : ""), examId, null, exam.getWorkflowState());
         parentPortalExamPageCache.invalidateTenant(exam.getTenantId());
         refreshReportCaches();
@@ -262,6 +294,9 @@ public class ExamService {
         }
         examRepo.save(exam);
         createPublicationSnapshot(exam, "WORKFLOW_PUBLISH", req != null ? req.getNote() : null);
+        if (published) {
+            publishExamNotificationRequestedEvent(exam, "EXAM_TIMETABLE_PUBLISHED");
+        }
         queuePublicationNotifications(exam, "EXAM_PUBLISHED");
         appendExamEvent(exam.getId(), "WORKFLOW_PUBLISH", Map.of("published", published));
         auditService.logUpdate("EXAMS", (published ? "Published" : "Unpublished") + " exam timetable", examId, null, exam.getWorkflowState());
@@ -336,6 +371,7 @@ public class ExamService {
         }
         scheduleRepo.saveAll(created);
         appendExamEvent(examId, "TIMETABLE_REPLACED", Map.of("rows", created.size()));
+        publishExamNotificationRequestedEvent(exam, "EXAM_TIMETABLE_UPDATED");
         log.info("Exam schedule replaced: exam={} rows={}", examId, created.size());
         parentPortalExamPageCache.invalidateTenant(t);
         refreshReportCaches();
@@ -426,13 +462,28 @@ public class ExamService {
         int to = Math.min(from + size, visible.size());
         List<Exam> slice = visible.subList(from, to);
         List<Long> sliceIds = slice.stream().map(Exam::getId).collect(Collectors.toList());
+        List<Long> linkedStudentIds = linkedChildren.stream()
+                .map(Student::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
         Map<Long, List<ExamScheduleSlot>> slotsByExam = sliceIds.isEmpty()
                 ? Map.of()
                 : scheduleRepo.findByTenantIdAndExamIdInAndIsDeletedFalseOrderByExamDateAscStartTimeAsc(tenantId, sliceIds).stream()
                 .collect(Collectors.groupingBy(ExamScheduleSlot::getExamId));
+        Map<Long, List<MarkRecord>> marksByExam = (sliceIds.isEmpty() || linkedStudentIds.isEmpty())
+                ? Map.of()
+                : markRepo.findByTenantIdAndExamIdInAndStudentIdIn(tenantId, sliceIds, linkedStudentIds).stream()
+                .collect(Collectors.groupingBy(MarkRecord::getExamId));
 
         List<ExamDTOs.ExamResponse> content = slice.stream()
-                .map(e -> toExamResponseForParentPortal(e, tenantId, linkedChildren, scopesByExam, slotsByExam.getOrDefault(e.getId(), List.of())))
+                .map(e -> toExamResponseForParentPortal(
+                        e,
+                        tenantId,
+                        linkedChildren,
+                        scopesByExam,
+                        slotsByExam.getOrDefault(e.getId(), List.of()),
+                        marksByExam.getOrDefault(e.getId(), List.of())))
                 .collect(Collectors.toList());
         log.debug("Parent portal exam page tenant={} linkedChildren={} page={} size={} total={}", tenantId, linkedChildren.size(), page, size, total);
         return PageResponse.of(content, page, size, total);
@@ -455,7 +506,7 @@ public class ExamService {
     }
 
     /**
-     * Parent portal: published marks for one exam and student, scope-checked.
+     * Parent portal: marks for one exam and student, scope-checked.
      */
     @Transactional(readOnly = true)
     public List<ExamDTOs.MarkResponse> listPublishedMarksForParentExam(Long studentId, Long examId, Long classId, Long sectionId) {
@@ -464,26 +515,36 @@ public class ExamService {
         if (!studentMatchesExamScope(t, exam, classId, sectionId)) {
             throw new UnauthorizedException("This exam is not available for your child’s class.");
         }
-        if (!Boolean.TRUE.equals(exam.getResultsPublished())) {
+        if (!canParentViewUnpublishedResults(t) && !Boolean.TRUE.equals(exam.getResultsPublished())) {
             return List.of();
         }
-        return markRepo.findByTenantIdAndExamId(t, examId).stream()
-                .filter(m -> studentId.equals(m.getStudentId()))
+        return markRepo.findByTenantIdAndExamIdAndStudentId(t, examId, studentId).stream()
                 .map(this::toMarkResponse)
                 .collect(Collectors.toList());
     }
 
     /**
-     * Parent portal: all published marks for a student across in-scope exams (aggregated “results” tab).
+     * Parent portal: all marks for a student across in-scope exams (aggregated “results” tab).
      */
     @Transactional(readOnly = true)
     public List<ExamDTOs.MarkResponse> listPublishedMarksForParentStudent(Long studentId, Long classId, Long sectionId) {
         String t = TenantContext.getTenantId();
+        boolean allowDraftResults = canParentViewUnpublishedResults(t);
         List<MarkRecord> all = markRepo.findByTenantIdAndStudentId(t, studentId);
+        Set<Long> examIds = all.stream()
+                .map(MarkRecord::getExamId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, Exam> examsById = examRepo.findByTenantIdAndIsDeletedFalse(t).stream()
+                .filter(ex -> examIds.contains(ex.getId()))
+                .collect(Collectors.toMap(Exam::getId, ex -> ex));
         List<ExamDTOs.MarkResponse> out = new ArrayList<>();
         for (MarkRecord m : all) {
-            Exam ex = examRepo.findByIdAndTenantIdAndIsDeletedFalse(m.getExamId(), t).orElse(null);
-            if (ex == null || !Boolean.TRUE.equals(ex.getResultsPublished())) {
+            Exam ex = examsById.get(m.getExamId());
+            if (ex == null) {
+                continue;
+            }
+            if (!allowDraftResults && !Boolean.TRUE.equals(ex.getResultsPublished())) {
                 continue;
             }
             if (!studentMatchesExamScope(t, ex, classId, sectionId)) {
@@ -494,6 +555,26 @@ public class ExamService {
         out.sort(Comparator.comparing(ExamDTOs.MarkResponse::getExamId, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(ExamDTOs.MarkResponse::getId, Comparator.nullsLast(Comparator.naturalOrder())));
         return out;
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] parentReportCardPdf(Long studentId, Long examId, Long classId, Long sectionId) {
+        Exam exam = requireExam(examId);
+        List<ExamDTOs.MarkResponse> rows = listPublishedMarksForParentExam(studentId, examId, classId, sectionId);
+        if (rows.size() > parentReportCardSyncMaxSubjects) {
+            throw new BusinessException("Report card is large; please use async report generation.");
+        }
+        double total = rows.stream().mapToDouble(r -> r.getMarksObtained() != null ? r.getMarksObtained() : 0d).sum();
+        double maxTotal = rows.stream().mapToDouble(r -> r.getMaxMarks() != null ? r.getMaxMarks() : 0d).sum();
+        double pct = maxTotal > 0 ? (total * 100.0) / maxTotal : 0d;
+        String grade = gradeFromPolicy(pct, exam.getBoardCode());
+        String studentName = studentRepository.findByIdAndTenantIdAndIsDeletedFalse(studentId, TenantContext.getTenantId())
+                .map(s -> (s.getFirstName() == null ? "" : s.getFirstName())
+                        + (s.getLastName() == null ? "" : (" " + s.getLastName())))
+                .map(String::trim)
+                .filter(n -> !n.isBlank())
+                .orElse("Student");
+        return examReportCardPdfService.render(exam.getName(), studentName, rows, total, maxTotal, pct, grade);
     }
 
     private boolean studentMatchesExamScope(String tenantId, Exam exam, Long classId, Long sectionId) {
@@ -988,7 +1069,15 @@ public class ExamService {
         List<ExamClassScope> scopes = scopeRepo.findByTenantIdAndExamIdAndIsDeletedFalse(tenantId, e.getId());
         Map<Long, List<ExamClassScope>> scopesByExam = Map.of(e.getId(), scopes);
         List<ExamScheduleSlot> slots = scheduleRepo.findByTenantIdAndExamIdAndIsDeletedFalseOrderByExamDateAscStartTimeAsc(tenantId, e.getId());
-        return toExamResponseForParentPortal(e, tenantId, linkedChildren, scopesByExam, slots);
+        List<Long> linkedStudentIds = linkedChildren.stream()
+                .map(Student::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        List<MarkRecord> marks = linkedStudentIds.isEmpty()
+                ? List.of()
+                : markRepo.findByTenantIdAndExamIdInAndStudentIdIn(tenantId, List.of(e.getId()), linkedStudentIds);
+        return toExamResponseForParentPortal(e, tenantId, linkedChildren, scopesByExam, slots, marks);
     }
 
     private ExamDTOs.ExamResponse toExamResponseForParentPortal(
@@ -996,7 +1085,8 @@ public class ExamService {
             String tenantId,
             List<Student> linkedChildren,
             Map<Long, List<ExamClassScope>> scopesByExam,
-            List<ExamScheduleSlot> scheduleRows
+            List<ExamScheduleSlot> scheduleRows,
+            List<MarkRecord> markRows
     ) {
         ExamDTOs.ExamResponse r = ExamDTOs.ExamResponse.builder()
                 .id(e.getId())
@@ -1021,7 +1111,42 @@ public class ExamService {
                 .filter(slot -> linkedChildren.stream().anyMatch(st ->
                         scheduleRowVisibleToStudent(slot, st.getClassId(), st.getSectionId())))
                 .collect(Collectors.toList()));
+        applyParentProjectionPolicyAndSummary(r, e, markRows);
         return r;
+    }
+
+    private void applyParentProjectionPolicyAndSummary(ExamDTOs.ExamResponse out, Exam exam, List<MarkRecord> markRows) {
+        String status = exam.getStatus() != null ? exam.getStatus().name().toLowerCase(Locale.ROOT) : "upcoming";
+        boolean resultsPublished = Boolean.TRUE.equals(exam.getResultsPublished());
+        boolean hasTimetable = out.getScheduleSlots() != null && !out.getScheduleSlots().isEmpty();
+        boolean viewable = hasTimetable || resultsPublished || !"upcoming".equals(status);
+        String reason = viewable ? "AVAILABLE" : "NOT_PUBLISHED_YET";
+        out.setParentViewable(viewable);
+        out.setParentViewableReason(reason);
+        if (exam.getStartDate() != null) {
+            out.setParentCountdownDays((int) java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), exam.getStartDate()));
+        }
+        if (markRows == null || markRows.isEmpty()) {
+            out.setParentSubjectCount(0);
+            out.setParentAveragePercentage(null);
+            out.setParentOverallGrade(null);
+            return;
+        }
+        Set<String> subjects = markRows.stream()
+                .map(MarkRecord::getSubjectName)
+                .filter(s -> s != null && !s.isBlank())
+                .map(String::trim)
+                .collect(Collectors.toSet());
+        double avgPct = markRows.stream()
+                .filter(m -> m.getMaxMarks() != null && m.getMaxMarks() > 0 && m.getMarksObtained() != null)
+                .mapToDouble(m -> (m.getMarksObtained() * 100.0) / m.getMaxMarks())
+                .average()
+                .orElse(Double.NaN);
+        out.setParentSubjectCount(subjects.size());
+        out.setParentAveragePercentage(Double.isNaN(avgPct) ? null : Math.round(avgPct * 10.0) / 10.0);
+        if (!Double.isNaN(avgPct)) {
+            out.setParentOverallGrade(gradeFromPolicy(avgPct, exam.getBoardCode()));
+        }
     }
 
     private List<Long> filterExamClassIdsForLinkedChildren(String tenantId, Exam e, List<Student> linkedChildren, Map<Long, List<ExamClassScope>> scopesByExam) {
@@ -1098,6 +1223,9 @@ public class ExamService {
             final SectionRepository sectionRepo,
             final ExamMarkingAccessPolicy markingAccessPolicy,
             final StudentRepository studentRepository,
+            final StudentGuardianMappingRepository studentGuardianMappingRepository,
+            final GuardianRepository guardianRepository,
+            final UserRepository userRepository,
             final ParentPortalExamPageCache parentPortalExamPageCache,
             final ExamTemplateRepository templateRepository,
             final ExamTemplateComponentRepository templateComponentRepository,
@@ -1109,6 +1237,13 @@ public class ExamService {
             final ExamModuleConfigHistoryRepository examModuleConfigHistoryRepository,
             final ExamBoardValidationPack examBoardValidationPack,
             final ExamReportCardSchemaEngine reportCardSchemaEngine,
+            final ExamReportCardPdfService examReportCardPdfService,
+            final ExamNotificationPolicyService examNotificationPolicyService,
+            final ExamRuntimePolicyService examRuntimePolicyService,
+            final ParentExamNotificationService parentExamNotificationService,
+            final NotificationCampaignTemplateService notificationCampaignTemplateService,
+            final NotificationDispatchIsolationService notificationDispatchIsolationService,
+            final DomainEventPublisher domainEventPublisher,
             final ObjectMapper objectMapper,
             final AuditService auditService,
             final ObjectProvider<CacheService> cacheService) {
@@ -1120,6 +1255,9 @@ public class ExamService {
         this.sectionRepo = sectionRepo;
         this.markingAccessPolicy = markingAccessPolicy;
         this.studentRepository = studentRepository;
+        this.studentGuardianMappingRepository = studentGuardianMappingRepository;
+        this.guardianRepository = guardianRepository;
+        this.userRepository = userRepository;
         this.parentPortalExamPageCache = parentPortalExamPageCache;
         this.templateRepository = templateRepository;
         this.templateComponentRepository = templateComponentRepository;
@@ -1131,6 +1269,13 @@ public class ExamService {
         this.examModuleConfigHistoryRepository = examModuleConfigHistoryRepository;
         this.examBoardValidationPack = examBoardValidationPack;
         this.reportCardSchemaEngine = reportCardSchemaEngine;
+        this.examReportCardPdfService = examReportCardPdfService;
+        this.examNotificationPolicyService = examNotificationPolicyService;
+        this.examRuntimePolicyService = examRuntimePolicyService;
+        this.parentExamNotificationService = parentExamNotificationService;
+        this.notificationCampaignTemplateService = notificationCampaignTemplateService;
+        this.notificationDispatchIsolationService = notificationDispatchIsolationService;
+        this.domainEventPublisher = domainEventPublisher;
         this.objectMapper = objectMapper;
         this.auditService = auditService;
         this.cacheService = cacheService;
@@ -1290,11 +1435,34 @@ public class ExamService {
         });
     }
 
+    private boolean canParentViewUnpublishedResults(String tenantId) {
+        return examRuntimePolicyService.resultVisibilityPolicy(tenantId)
+                == ExamRuntimePolicyService.ResultVisibilityPolicy.DRAFT_VISIBLE;
+    }
+
+    private String resolveBoardCodeForCreate(String tenantId, String requestedBoardCode) {
+        if (requestedBoardCode != null && !requestedBoardCode.isBlank()) {
+            return requestedBoardCode;
+        }
+        String boardPack = examRuntimePolicyService.effectivePackCodes(tenantId).get("board");
+        if (boardPack == null || boardPack.isBlank()) {
+            return "STATE";
+        }
+        int idx = boardPack.indexOf('_');
+        return idx > 0 ? boardPack.substring(0, idx) : boardPack;
+    }
+
     private void ensureScheduleRowsValidForExam(Exam exam, List<ExamScopeDtos.ScheduleSlotIn> rows) {
         ExamRules rules = readExamRules(exam);
         Map<String, List<ExamScopeDtos.ScheduleSlotIn>> grouped = new HashMap<>();
         for (ExamScopeDtos.ScheduleSlotIn row : rows) {
-            if (row.getClassId() == null || row.getExamDate() == null || row.getStartTime() == null || row.getEndTime() == null) {
+            if (row.getClassId() == null
+                    || row.getExamDate() == null
+                    || row.getStartTime() == null
+                    || row.getEndTime() == null
+                    || row.getExamDate().isBlank()
+                    || row.getStartTime().isBlank()
+                    || row.getEndTime().isBlank()) {
                 throw new BusinessException("Schedule row is missing class/date/time");
             }
             if (rules.requireRoom && (row.getRoom() == null || row.getRoom().isBlank())) {
@@ -1303,9 +1471,16 @@ public class ExamService {
             if (rules.requireInvigilator && (row.getInvigilatorName() == null || row.getInvigilatorName().isBlank())) {
                 throw new BusinessException("Invigilator is required for each schedule row by exam rule");
             }
-            LocalDate d = LocalDate.parse(row.getExamDate());
-            LocalTime st = LocalTime.parse(row.getStartTime());
-            LocalTime et = LocalTime.parse(row.getEndTime());
+            LocalDate d;
+            LocalTime st;
+            LocalTime et;
+            try {
+                d = LocalDate.parse(row.getExamDate().trim());
+                st = LocalTime.parse(row.getStartTime().trim());
+                et = LocalTime.parse(row.getEndTime().trim());
+            } catch (DateTimeParseException ex) {
+                throw new BusinessException("Invalid schedule date/time format. Expected date YYYY-MM-DD and time HH:MM[:SS].");
+            }
             if (!st.isBefore(et)) {
                 throw new BusinessException("Schedule start time must be before end time");
             }
@@ -1322,8 +1497,11 @@ public class ExamService {
             grouped.computeIfAbsent(bucket, k -> new ArrayList<>()).add(row);
             List<ExamScheduleSlot> existingOtherExam = scheduleRepo.findByTenantIdAndExamDateAndOtherExam(exam.getTenantId(), d, exam.getId());
             for (ExamScheduleSlot exSlot : existingOtherExam) {
+                if (exSlot.getClassId() == null || exSlot.getStartTime() == null || exSlot.getEndTime() == null) {
+                    continue;
+                }
                 boolean sameClass =
-                        exSlot.getClassId().equals(row.getClassId())
+                        Objects.equals(exSlot.getClassId(), row.getClassId())
                         && (Objects.equals(exSlot.getSectionId(), row.getSectionId()) || exSlot.getSectionId() == null || row.getSectionId() == null);
                 boolean sameRoom = row.getRoom() != null && !row.getRoom().isBlank() && exSlot.getRoom() != null
                         && row.getRoom().trim().equalsIgnoreCase(exSlot.getRoom().trim());
@@ -1339,11 +1517,23 @@ public class ExamService {
                 throw new BusinessException("Schedule exceeds max papers per day rule for a class/section");
             }
             for (int i = 0; i < bucketRows.size(); i++) {
-                LocalTime aStart = LocalTime.parse(bucketRows.get(i).getStartTime());
-                LocalTime aEnd = LocalTime.parse(bucketRows.get(i).getEndTime());
+                LocalTime aStart;
+                LocalTime aEnd;
+                try {
+                    aStart = LocalTime.parse(bucketRows.get(i).getStartTime().trim());
+                    aEnd = LocalTime.parse(bucketRows.get(i).getEndTime().trim());
+                } catch (DateTimeParseException ex) {
+                    throw new BusinessException("Invalid schedule time format. Expected HH:MM[:SS].");
+                }
                 for (int j = i + 1; j < bucketRows.size(); j++) {
-                    LocalTime bStart = LocalTime.parse(bucketRows.get(j).getStartTime());
-                    LocalTime bEnd = LocalTime.parse(bucketRows.get(j).getEndTime());
+                    LocalTime bStart;
+                    LocalTime bEnd;
+                    try {
+                        bStart = LocalTime.parse(bucketRows.get(j).getStartTime().trim());
+                        bEnd = LocalTime.parse(bucketRows.get(j).getEndTime().trim());
+                    } catch (DateTimeParseException ex) {
+                        throw new BusinessException("Invalid schedule time format. Expected HH:MM[:SS].");
+                    }
                     if (aStart.isBefore(bEnd) && bStart.isBefore(aEnd)) {
                         throw new BusinessException("Schedule has overlapping time slots for the same class/section/date");
                     }
@@ -1624,6 +1814,249 @@ public class ExamService {
 
     private void runJobWithTenantContext(ExamNotificationJob job, Runnable task) {
         TenantScopedExecution.run(job.getTenantId(), null, "SYSTEM", task);
+    }
+
+    private record ExamNotificationRecipient(User user, String localeCode) {}
+
+    @Transactional(readOnly = true)
+    public void dispatchExamNotification(Long examId, String eventType) {
+        String tenantId = TenantContext.getTenantId();
+        if (tenantId == null || tenantId.isBlank() || examId == null || eventType == null || eventType.isBlank()) {
+            return;
+        }
+        Exam exam = examRepo.findByIdAndTenantIdAndIsDeletedFalse(examId, tenantId).orElse(null);
+        if (exam == null) {
+            log.debug("Skip exam notification dispatch; exam not found tenant={} examId={}", tenantId, examId);
+            return;
+        }
+        queueExamNotificationsOutbox(exam, eventType.trim().toUpperCase(Locale.ROOT));
+    }
+
+    private void publishExamNotificationRequestedEvent(Exam exam, String eventType) {
+        if (exam == null || exam.getId() == null || exam.getTenantId() == null || exam.getTenantId().isBlank()) {
+            return;
+        }
+        if (eventType == null || eventType.isBlank()) {
+            return;
+        }
+        domainEventPublisher.publish(new ExamNotificationRequestedEvent(
+                exam.getTenantId(),
+                exam.getId(),
+                eventType.trim().toUpperCase(Locale.ROOT)));
+    }
+
+    private void queueExamNotificationsOutbox(Exam exam, String eventType) {
+        List<ExamNotificationRecipient> recipients = resolveExamParentRecipients(exam);
+        if (recipients.isEmpty()) {
+            return;
+        }
+        String tenantId = exam.getTenantId();
+        for (ExamNotificationRecipient recipient : recipients) {
+            User user = recipient.user();
+            String locale = normalizeLocaleCode(recipient.localeCode());
+            NotificationDispatchAttributes attrsBase = NotificationDispatchAttributes.academicYearOrEmpty(exam.getAcademicYearId());
+            String correlationId = "exam-" + exam.getId() + "-" + eventType.toLowerCase(Locale.ROOT);
+            List<String> preferredChannels = examNotificationPolicyService.preferredChannelsForUser(user);
+            List<String> channels = parentExamNotificationService.filterChannelsByPreference(tenantId, user.getId(), preferredChannels);
+            for (String channel : channels) {
+                NotificationDispatchAttributes attrs = attrsBase;
+                if ("SMS".equalsIgnoreCase(channel)) {
+                    var smsTemplateOpt = notificationCampaignTemplateService.resolveActiveSmsTemplateWithDlt(eventType, locale);
+                    if (smsTemplateOpt.isEmpty()) {
+                        log.warn(
+                                "Exam SMS skipped: no active DLT template tenant={} eventType={} locale={} examId={} userId={}",
+                                tenantId,
+                                eventType,
+                                locale,
+                                exam.getId(),
+                                user.getId());
+                        continue;
+                    }
+                    try {
+                        String varsJson = objectMapper.writeValueAsString(buildExamTemplateVars(exam, eventType, locale));
+                        attrs = NotificationDispatchAttributes
+                                .smsTemplate(smsTemplateOpt.get().getDltTemplateId(), varsJson)
+                                .withAcademicYear(exam.getAcademicYearId());
+                    } catch (Exception ex) {
+                        log.warn(
+                                "Exam SMS skipped: template vars serialization failed tenant={} eventType={} examId={} userId={} reason={}",
+                                tenantId,
+                                eventType,
+                                exam.getId(),
+                                user.getId(),
+                                ex.getMessage());
+                        continue;
+                    }
+                }
+                String subject = buildExamNotificationSubject(exam, eventType, channel, locale);
+                String body = buildExamNotificationBody(exam, eventType, channel, locale);
+                enqueueExamOutboxForChannel(
+                        tenantId, exam, eventType, channel, recipient, locale, subject, body, correlationId, attrs);
+            }
+            parentExamNotificationService.markNotified(tenantId, user.getId(), exam.getId(), eventType);
+        }
+    }
+
+    private void enqueueExamOutboxForChannel(
+            String tenantId,
+            Exam exam,
+            String eventType,
+            String channel,
+            ExamNotificationRecipient recipient,
+            String locale,
+            String subject,
+            String body,
+            String correlationId,
+            NotificationDispatchAttributes attrs
+    ) {
+        String target = switch (channel) {
+            case "EMAIL" -> recipient.user().getEmail();
+            case "IN_APP" -> null;
+            default -> recipient.user().getPhone();
+        };
+        if ("EMAIL".equals(channel) && (target == null || target.isBlank())) {
+            return;
+        }
+        if ("SMS".equals(channel) && (target == null || target.isBlank())) {
+            return;
+        }
+        String dedupeKey = String.format(
+                Locale.ROOT,
+                "EXAM:%d:%s:%s:%d:%s",
+                exam.getId(),
+                eventType,
+                channel,
+                recipient.user().getId(),
+                locale);
+        notificationDispatchIsolationService.enqueueIsolated(
+                tenantId,
+                eventType,
+                channel,
+                recipient.user().getId(),
+                target,
+                subject,
+                body,
+                dedupeKey,
+                correlationId,
+                attrs);
+    }
+
+    private List<ExamNotificationRecipient> resolveExamParentRecipients(Exam exam) {
+        String tenantId = exam.getTenantId();
+        List<Student> scopedStudents = resolveStudentsInExamAudience(exam);
+        if (scopedStudents.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> userIds = new LinkedHashSet<>();
+        for (Student student : scopedStudents) {
+            if (student.getParentId() != null) {
+                userIds.add(student.getParentId());
+            }
+            List<StudentGuardianMapping> links =
+                    studentGuardianMappingRepository.findByTenantIdAndStudentIdAndIsDeletedFalse(tenantId, student.getId());
+            for (StudentGuardianMapping link : links) {
+                Guardian guardian = guardianRepository.findByIdAndTenantIdAndIsDeletedFalse(link.getGuardianId(), tenantId).orElse(null);
+                if (guardian != null && guardian.getUserId() != null) {
+                    userIds.add(guardian.getUserId());
+                }
+            }
+        }
+        if (userIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<User> users = userRepository.findByTenantIdAndIdInAndIsDeletedFalse(tenantId, userIds);
+        List<ExamNotificationRecipient> recipients = new ArrayList<>();
+        for (User user : users) {
+            recipients.add(new ExamNotificationRecipient(user, user.getPreferredLocale()));
+        }
+        return recipients;
+    }
+
+    private List<Student> resolveStudentsInExamAudience(Exam exam) {
+        String tenantId = exam.getTenantId();
+        List<ExamClassScope> scopes = scopeRepo.findByTenantIdAndExamIdAndIsDeletedFalse(tenantId, exam.getId());
+        Set<Long> studentIds = new LinkedHashSet<>();
+        if (!scopes.isEmpty()) {
+            for (ExamClassScope scope : scopes) {
+                List<Student> rows = scope.getSectionId() == null
+                        ? studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, scope.getClassId())
+                        : studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(
+                                tenantId, scope.getClassId(), scope.getSectionId());
+                rows.stream().map(Student::getId).forEach(studentIds::add);
+            }
+        } else if (exam.getClassIds() != null && !exam.getClassIds().isEmpty()) {
+            studentRepository.findByTenantIdAndClassIdInAndIsDeletedFalse(tenantId, exam.getClassIds())
+                    .stream()
+                    .map(Student::getId)
+                    .forEach(studentIds::add);
+        }
+        return studentIds.isEmpty()
+                ? List.of()
+                : studentRepository.findByTenantIdAndIdInAndIsDeletedFalse(tenantId, new ArrayList<>(studentIds));
+    }
+
+    private String normalizeLocaleCode(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "en";
+        }
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
+        return normalized.startsWith("hi") ? "hi" : "en";
+    }
+
+    private String buildExamNotificationSubject(Exam exam, String eventType, String channel, String locale) {
+        String fallback = switch (eventType) {
+            case "EXAM_RESULTS_PUBLISHED" -> "Exam results published";
+            case "EXAM_TIMETABLE_UPDATED" -> "Exam timetable updated";
+            default -> "Exam timetable published";
+        };
+        String rendered = notificationCampaignTemplateService.render(
+                channel,
+                eventType,
+                locale,
+                buildExamTemplateVars(exam, eventType, locale),
+                fallback);
+        return rendered == null || rendered.isBlank() ? fallback : rendered;
+    }
+
+    private String buildExamNotificationBody(Exam exam, String eventType, String channel, String locale) {
+        String fallback = "hi".equals(locale)
+                ? "परीक्षा अपडेट उपलब्ध है। कृपया पोर्टल देखें।"
+                : "Exam update is available. Please check the portal.";
+        return notificationCampaignTemplateService.render(
+                channel,
+                eventType,
+                locale,
+                buildExamTemplateVars(exam, eventType, locale),
+                fallback);
+    }
+
+    private Map<String, String> buildExamTemplateVars(Exam exam, String eventType, String locale) {
+        String examName = exam.getName() != null ? exam.getName() : "Exam";
+        String dateRange = (exam.getStartDate() != null && exam.getEndDate() != null)
+                ? (exam.getStartDate() + " to " + exam.getEndDate())
+                : "-";
+        String message;
+        if ("hi".equals(locale)) {
+            message = switch (eventType) {
+                case "EXAM_RESULTS_PUBLISHED" -> "परीक्षा " + examName + " के परिणाम प्रकाशित हो गए हैं।";
+                case "EXAM_TIMETABLE_UPDATED" -> "परीक्षा " + examName + " की समय सारणी अपडेट हुई है।";
+                default -> "परीक्षा " + examName + " की समय सारणी प्रकाशित की गई है।";
+            };
+        } else {
+            message = switch (eventType) {
+                case "EXAM_RESULTS_PUBLISHED" -> "Results for " + examName + " are now published.";
+                case "EXAM_TIMETABLE_UPDATED" -> "Timetable for " + examName + " has been updated.";
+                default -> "Timetable for " + examName + " is now published.";
+            };
+        }
+        return Map.of(
+                "examName", examName,
+                "dateRange", dateRange,
+                "eventType", eventType,
+                "message", message,
+                "title", examName);
     }
 
     private void createPublicationSnapshot(Exam exam, String type, String note) {

@@ -9,7 +9,9 @@ public interface MarkRecordRepository extends JpaRepository<MarkRecord, Long> {
     List<MarkRecord> findByTenantId(String tenantId);
     List<MarkRecord> findByTenantIdAndClassIdIn(String tenantId, List<Long> classIds);
     List<MarkRecord> findByTenantIdAndExamId(String tenantId, Long examId);
+    List<MarkRecord> findByTenantIdAndExamIdAndStudentId(String tenantId, Long examId, Long studentId);
     List<MarkRecord> findByTenantIdAndStudentId(String tenantId, Long studentId);
+    List<MarkRecord> findByTenantIdAndExamIdInAndStudentIdIn(String tenantId, List<Long> examIds, List<Long> studentIds);
     List<MarkRecord> findByTenantIdAndExamIdAndClassId(String tenantId, Long examId, Long classId);
 
     @Query("""

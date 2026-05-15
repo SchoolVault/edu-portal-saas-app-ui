@@ -63,6 +63,6 @@ management:
 
 logging:
   level:
-    com.school.erp: DEBUG
-    org.hibernate.SQL: DEBUG
+    com.school.erp: INFO
+    org.hibernate.SQL: INFO
     com.zaxxer.hikari.HikariConfig: DEBUG

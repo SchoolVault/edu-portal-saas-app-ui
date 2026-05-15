@@ -21,14 +21,19 @@ import com.school.erp.modules.timetable.dto.TimetableDTOs;
 import com.school.erp.modules.timetable.entity.TimetableEntry;
 import com.school.erp.modules.timetable.service.TimetableService;
 import com.school.erp.modules.exams.dto.ExamDTOs;
+import com.school.erp.modules.exams.dto.ParentExamNotificationDTOs;
 import com.school.erp.modules.exams.dto.ExamScopeDtos;
 import com.school.erp.modules.exams.service.ExamService;
+import com.school.erp.modules.exams.service.ParentExamNotificationService;
+import com.school.erp.modules.reports.dto.ReportModuleDTOs;
+import com.school.erp.modules.reports.service.ReportService;
 import com.school.erp.modules.fees.repository.FeePaymentRepository;
 import com.school.erp.modules.fees.entity.FeePayment;
 import com.school.erp.modules.fees.dto.FeeDTOs;
 import com.school.erp.modules.fees.service.FeeService;
 import com.school.erp.modules.parent.service.ParentPortalReadFacade;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
+import com.school.erp.modules.audit.service.AuditService;
 import com.school.erp.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -64,12 +69,16 @@ public class ParentController {
     private final ParentPortalReadFacade parentPortalReadFacade;
     private final StudentEnrolmentDisplayService studentEnrolmentDisplayService;
     private final TenantConfigRepository tenantConfigRepository;
+    private final AuditService auditService;
+    private final ParentExamNotificationService parentExamNotificationService;
+    private final ReportService reportService;
 
     @GetMapping("/exams")
     @Operation(summary = "Exams for your children only",
             description = "Union of exam cycles whose class/section audience includes at least one linked child. "
                     + "Same JSON shape as GET /exams (staff-only). Parents must not call GET /exams.")
     public ResponseEntity<ApiResponse<List<ExamDTOs.ExamResponse>>> listExamsForMyChildren() {
+        auditService.logUpdate("PARENT_EXAMS", "Viewed parent exam cards", null, null, "view=exam_cards");
         return ResponseEntity.ok(ApiResponse.ok(parentPortalReadFacade.listExamsForCurrentParentUser()));
     }
 
@@ -81,6 +90,7 @@ public class ParentController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         int capped = Math.min(Math.max(size, 1), 50);
+        auditService.logUpdate("PARENT_EXAMS", "Viewed parent exam cards paged", null, null, "page=" + page + ",size=" + capped);
         return ResponseEntity.ok(ApiResponse.ok(parentPortalReadFacade.listExamsForCurrentParentUserPaged(page, capped)));
     }
 
@@ -103,6 +113,7 @@ public class ParentController {
             description = "Only marks for exams that include this student’s class/section and have results published.")
     public ResponseEntity<ApiResponse<List<ExamDTOs.MarkResponse>>> getChildMarks(@PathVariable Long studentId) {
         Student s = assertParentOwnsStudent(studentId);
+        auditService.logUpdate("PARENT_EXAMS", "Viewed child published marks", studentId, null, "scope=all_exams");
         return ResponseEntity.ok(ApiResponse.ok(
                 examService.listPublishedMarksForParentStudent(studentId, s.getClassId(), s.getSectionId())));
     }
@@ -111,6 +122,7 @@ public class ParentController {
     @Operation(summary = "List exams for the child’s class/section")
     public ResponseEntity<ApiResponse<List<ExamDTOs.ParentExamSummaryResponse>>> getChildExams(@PathVariable Long studentId) {
         Student s = assertParentOwnsStudent(studentId);
+        auditService.logUpdate("PARENT_EXAMS", "Viewed child exam summaries", studentId, null, "scope=child");
         return ResponseEntity.ok(ApiResponse.ok(examService.listExamsForParentStudent(s.getClassId(), s.getSectionId())));
     }
 
@@ -120,6 +132,7 @@ public class ParentController {
             @PathVariable Long studentId,
             @PathVariable Long examId) {
         Student s = assertParentOwnsStudent(studentId);
+        auditService.logUpdate("PARENT_EXAMS", "Viewed child exam timetable", examId, null, "studentId=" + studentId);
         return ResponseEntity.ok(ApiResponse.ok(
                 examService.listScheduleForParentStudent(examId, s.getClassId(), s.getSectionId())));
     }
@@ -130,8 +143,75 @@ public class ParentController {
             @PathVariable Long studentId,
             @PathVariable Long examId) {
         Student s = assertParentOwnsStudent(studentId);
+        auditService.logUpdate("PARENT_EXAMS", "Viewed child exam marks", examId, null, "studentId=" + studentId);
         return ResponseEntity.ok(ApiResponse.ok(
                 examService.listPublishedMarksForParentExam(studentId, examId, s.getClassId(), s.getSectionId())));
+    }
+
+    @GetMapping(value = "/children/{studentId}/exams/{examId}/report-card/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Download child report card PDF for one exam")
+    public ResponseEntity<byte[]> getChildExamReportCardPdf(
+            @PathVariable Long studentId,
+            @PathVariable Long examId) {
+        Student s = assertParentOwnsStudent(studentId);
+        byte[] data = examService.parentReportCardPdf(studentId, examId, s.getClassId(), s.getSectionId());
+        auditService.logUpdate("PARENT_EXAMS", "Downloaded child report card pdf", examId, null, "studentId=" + studentId);
+        String safeName = ("report-card-" + studentId + "-" + examId).replaceAll("[^a-zA-Z0-9._-]", "_");
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(safeName + ".pdf", StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(data);
+    }
+
+    @PostMapping("/children/{studentId}/exams/{examId}/report-card/jobs")
+    @Operation(summary = "Queue async report card PDF generation for child+exam")
+    public ResponseEntity<ApiResponse<ReportModuleDTOs.ReportJobResponse>> queueChildExamReportCardJob(
+            @PathVariable Long studentId,
+            @PathVariable Long examId) {
+        Student s = assertParentOwnsStudent(studentId);
+        ReportModuleDTOs.GenerateReportRequest req = new ReportModuleDTOs.GenerateReportRequest();
+        req.setReportType("REPORT_CARD");
+        req.setFormat("PDF");
+        req.setScheduleAt(java.time.LocalDateTime.now().plusSeconds(2).toString());
+        req.setRequestId("parent-report-card-" + studentId + "-" + examId + "-" + System.currentTimeMillis());
+        req.setFilters(Map.of(
+                "studentId", studentId,
+                "examId", examId,
+                "classId", s.getClassId()));
+        ReportModuleDTOs.ReportJobResponse out = reportService.generateReport(req);
+        auditService.logUpdate("PARENT_EXAMS", "Queued async report card job", examId, null, "studentId=" + studentId + ",jobId=" + out.getId());
+        return ResponseEntity.ok(ApiResponse.ok(out));
+    }
+
+    @GetMapping("/exam-notifications/unread-count")
+    @Operation(summary = "Unread parent exam notification count")
+    public ResponseEntity<ApiResponse<Long>> unreadExamNotificationCount() {
+        return ResponseEntity.ok(ApiResponse.ok(parentExamNotificationService.unreadCountForCurrentParent()));
+    }
+
+    @PostMapping("/exam-notifications/ack")
+    @Operation(summary = "Acknowledge parent exam notifications")
+    public ResponseEntity<ApiResponse<Void>> acknowledgeExamNotifications(
+            @RequestBody(required = false) ParentExamNotificationDTOs.BulkAcknowledgeRequest req) {
+        parentExamNotificationService.acknowledgeForCurrentParent(
+                req != null ? req.getExamId() : null,
+                req != null ? req.getEventTypes() : null);
+        return ResponseEntity.ok(ApiResponse.ok(null, "Acknowledged"));
+    }
+
+    @GetMapping("/exam-notifications/preferences")
+    @Operation(summary = "Parent exam notification preference")
+    public ResponseEntity<ApiResponse<ParentExamNotificationDTOs.NotificationPreferenceResponse>> getExamNotificationPreference() {
+        return ResponseEntity.ok(ApiResponse.ok(parentExamNotificationService.getPreferenceForCurrentParent()));
+    }
+
+    @PutMapping("/exam-notifications/preferences")
+    @Operation(summary = "Update parent exam notification preference")
+    public ResponseEntity<ApiResponse<ParentExamNotificationDTOs.NotificationPreferenceResponse>> updateExamNotificationPreference(
+            @RequestBody ParentExamNotificationDTOs.UpdateNotificationPreferenceRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(parentExamNotificationService.upsertPreferenceForCurrentParent(req)));
     }
 
     @GetMapping("/children/{studentId}/fees")
@@ -379,7 +459,10 @@ public class ParentController {
             final TimetableService timetableService,
             final ParentPortalReadFacade parentPortalReadFacade,
             final StudentEnrolmentDisplayService studentEnrolmentDisplayService,
-            final TenantConfigRepository tenantConfigRepository) {
+            final TenantConfigRepository tenantConfigRepository,
+            final AuditService auditService,
+            final ParentExamNotificationService parentExamNotificationService,
+            final ReportService reportService) {
         this.studentRepo = studentRepo;
         this.guardianService = guardianService;
         this.examService = examService;
@@ -394,5 +477,8 @@ public class ParentController {
         this.parentPortalReadFacade = parentPortalReadFacade;
         this.studentEnrolmentDisplayService = studentEnrolmentDisplayService;
         this.tenantConfigRepository = tenantConfigRepository;
+        this.auditService = auditService;
+        this.parentExamNotificationService = parentExamNotificationService;
+        this.reportService = reportService;
     }
 }

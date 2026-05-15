@@ -477,6 +477,16 @@ app:
       # Real-time guard for dashboard APIs. Use exact names or wildcard prefixes (e.g., DASHBOARD_*).
       realtime-snapshot-types: ${APP_REPORTS_REALTIME_SNAPSHOT_TYPES:DASHBOARD_*}
 
+  exams:
+    report-card:
+      # Parent sync PDF path threshold; larger payloads should use async report job endpoint.
+      sync-max-subjects: ${APP_EXAMS_REPORT_CARD_SYNC_MAX_SUBJECTS:25}
+    config-pack:
+      # Declarative default pack selectors used by school onboarding/governance (future-safe).
+      default-board-pack: ${APP_EXAMS_CONFIG_DEFAULT_BOARD_PACK:CBSE_CORE}
+      default-region-pack: ${APP_EXAMS_CONFIG_DEFAULT_REGION_PACK:INDIA_GENERAL}
+      default-school-type-pack: ${APP_EXAMS_CONFIG_DEFAULT_SCHOOL_TYPE_PACK:K12_GENERAL}
+
   lifecycle:
     purge:
       enabled: ${APP_LIFECYCLE_PURGE_ENABLED:false}

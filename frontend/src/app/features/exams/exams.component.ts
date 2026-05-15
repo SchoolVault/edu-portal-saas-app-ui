@@ -10,7 +10,6 @@ import { StudentService } from '../../core/services/student.service';
 import { AuthService } from '../../core/services/auth.service';
 import { UiAccessService } from '../../core/services/ui-access.service';
 import { runtimeConfig } from '../../core/config/runtime-config';
-import { examAppliesToStudent } from '../../core/utils/exam-scope';
 import { forkJoin } from 'rxjs';
 import { skip } from 'rxjs/operators';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -27,7 +26,8 @@ import {
   Student,
   ExamTemplate,
   ExamModuleConfigHistoryItem,
-  ExamModuleConfigKey
+  ExamModuleConfigKey,
+  SubjectCatalogItem
 } from '../../core/models/models';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
@@ -105,6 +105,9 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
       <div class="erp-filter-toolbar mb-4 animate-in">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">{{ 'exams.pageTitle' | translate }}</h2>
+          <p *ngIf="role === 'parent' && parentExamUnreadCount > 0" class="small mb-1 text-primary">
+            {{ parentExamUnreadCount }} exam update(s) unread
+          </p>
           <p class="text-muted mb-0" style="font-size: 13px;" *ngIf="role !== 'parent'">
             {{ 'exams.leadStaffBefore' | translate }}<strong>{{ 'exams.leadStaffStrong1' | translate }}</strong
             >{{ 'exams.leadStaffMid' | translate }}<strong>{{ 'exams.leadStaffStrong2' | translate }}</strong
@@ -201,6 +204,17 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
         </div>
       </div>
 
+      <div class="row g-4 mb-4 animate-in animate-in-delay-1" *ngIf="role === 'parent' && selectedParentChildId != null && parentChildLoading">
+        <div class="col-md-6 col-lg-3" *ngFor="let i of [1,2,3,4]">
+          <div class="erp-card exam-card-skeleton h-100">
+            <div class="skeleton-line skeleton-title"></div>
+            <div class="skeleton-line skeleton-pill"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line skeleton-short"></div>
+          </div>
+        </div>
+      </div>
+
       <app-erp-pagination
         *ngIf="role !== 'parent' && staffUsesServerPaging && staffExamTotal > 0"
         class="d-block mb-4"
@@ -215,7 +229,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
         {{ 'exams.pickChildPrompt' | translate }}
       </div>
 
-      <div *ngIf="role === 'parent' && selectedParentChildId != null && !examGridList.length" class="erp-card mb-4 animate-in empty-state">
+      <div *ngIf="role === 'parent' && selectedParentChildId != null && !parentChildLoading && !examGridList.length" class="erp-card mb-4 animate-in empty-state">
         <h3>{{ 'exams.noExamsChildTitle' | translate }}</h3>
         <p class="small mb-0 text-muted">{{ 'exams.noExamsChildLead' | translate }}</p>
       </div>
@@ -232,9 +246,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
               type="button"
               class="erp-tab"
               [class.active]="parentDetailTab === 'results'"
-              [disabled]="!selectedExam.resultsPublished"
-              [title]="!selectedExam.resultsPublished ? ('exams.resultsNotPublishedTitle' | translate) : ''"
-              (click)="selectedExam.resultsPublished && (parentDetailTab = 'results')"
+              (click)="parentDetailTab = 'results'"
             >
               {{ 'exams.tabResults' | translate }}
             </button>
@@ -271,12 +283,16 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
         </div>
 
         <ng-container *ngIf="role === 'parent' && selectedExam && parentDetailTab === 'results'">
-          <p *ngIf="!selectedExam.resultsPublished" class="text-muted small">{{ 'exams.resultsNotPublished' | translate }}</p>
-          <ng-container *ngIf="selectedExam.resultsPublished && marks.length">
+          <ng-container *ngIf="marks.length">
             <div class="row g-2 align-items-end mb-2">
               <div class="col-md-6">
                 <label class="erp-label small mb-1" erpI18nText="exams.searchParentResults"></label>
                 <input type="search" class="erp-input" erpI18nPh="exams.searchParentResultsPh" [(ngModel)]="parentResultsSearch" (ngModelChange)="onParentResultsSearchChange()" />
+              </div>
+              <div class="col-md-6 text-md-end">
+                <button type="button" class="btn-outline-erp btn-sm" (click)="downloadParentReportCardPdf()">
+                  <i class="bi bi-file-earmark-pdf"></i> Download report card PDF
+                </button>
               </div>
             </div>
             <p *ngIf="!parentResultsFilteredTotal" class="text-muted small mb-2">{{ 'exams.noMatches' | translate }}</p>
@@ -312,7 +328,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
               (pageSizeChange)="onParentResultsPageSize($event)"
             />
           </ng-container>
-          <p *ngIf="selectedExam.resultsPublished && !marks.length" class="text-muted small mb-0">{{ 'exams.noMarkRows' | translate }}</p>
+          <p *ngIf="!marks.length" class="text-muted small mb-0">{{ 'exams.noMarkRows' | translate }}</p>
         </ng-container>
 
         <app-exam-marks-entry *ngIf="detailTab === 'marks' && canEnterMarks">
@@ -851,8 +867,9 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
                 <label class="erp-label">{{ 'exams.labelSessionType' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="newExam.sessionType">
                   <option value="ANNUAL">{{ 'exams.sessionType.annual' | translate }}</option>
-                  <option value="TERM">{{ 'exams.sessionType.term' | translate }}</option>
-                  <option value="MONTHLY">{{ 'exams.sessionType.monthly' | translate }}</option>
+                  <option value="HALF_YEARLY">{{ 'exams.sessionType.term' | translate }}</option>
+                  <option value="PERIODIC">{{ 'exams.sessionType.monthly' | translate }}</option>
+                  <option value="BOARD">Board</option>
                 </select>
               </div>
             </div>
@@ -872,8 +889,9 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
                 <select class="erp-select" [(ngModel)]="newExam.assessmentKind">
                   <option value="THEORY">{{ 'exams.assessmentKind.theory' | translate }}</option>
                   <option value="PRACTICAL">{{ 'exams.assessmentKind.practical' | translate }}</option>
-                  <option value="INTERNAL">{{ 'exams.assessmentKind.internal' | translate }}</option>
-                  <option value="COMPOSITE">{{ 'exams.assessmentKind.composite' | translate }}</option>
+                  <option value="VIVA">Viva</option>
+                  <option value="PROJECT">Project</option>
+                  <option value="HYBRID">Hybrid</option>
                 </select>
               </div>
             </div>
@@ -985,6 +1003,22 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
       .exam-card-pick { transition: border-color 0.15s ease, box-shadow 0.15s ease; cursor: pointer; }
       .exam-card-pick--disabled { cursor: not-allowed; opacity: 0.62; pointer-events: none; }
       .exam-card-active { border-color: var(--clr-accent) !important; box-shadow: 0 0 0 1px color-mix(in srgb, var(--clr-accent) 35%, transparent); }
+      .exam-card-skeleton { border: 1px solid var(--clr-border-light); }
+      .skeleton-line {
+        height: 12px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        background: linear-gradient(90deg, color-mix(in srgb, var(--clr-surface-muted) 80%, #fff 20%) 25%, color-mix(in srgb, var(--clr-border-light) 60%, #fff 40%) 50%, color-mix(in srgb, var(--clr-surface-muted) 80%, #fff 20%) 75%);
+        background-size: 200% 100%;
+        animation: examSkeletonPulse 1.25s ease-in-out infinite;
+      }
+      .skeleton-title { height: 16px; width: 78%; margin-bottom: 14px; }
+      .skeleton-pill { width: 38%; border-radius: 999px; }
+      .skeleton-short { width: 64%; }
+      @keyframes examSkeletonPulse {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
       .wizard-steps { display: flex; align-items: center; gap: 8px; }
       .wizard-steps span { width: 28px; height: 28px; border-radius: 999px; border: 1px solid var(--clr-border); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--clr-text-muted); background: var(--clr-surface); }
       .wizard-steps span.active, .wizard-steps span.done { background: var(--clr-primary); border-color: var(--clr-primary); color: #fff; }
@@ -1048,6 +1082,7 @@ export class ExamsComponent implements OnInit {
   scheduleUiMessage = '';
   scheduleUiError = false;
   marksEntryStudents: Student[] = [];
+  subjectCatalog: SubjectCatalogItem[] = [];
   marksByStudent: Record<number, number | null> = {};
   newExam = {
     name: '',
@@ -1101,6 +1136,8 @@ export class ExamsComponent implements OnInit {
   };
   selectedParentChildId: number | null = null;
   parentDetailTab: 'timetable' | 'results' = 'timetable';
+  parentExamUnreadCount = 0;
+  parentChildLoading = false;
 
   recordedSearch = '';
   recordedPageIndex = 0;
@@ -1202,24 +1239,14 @@ export class ExamsComponent implements OnInit {
   }
 
   get parentFilteredExams(): Exam[] {
-    if (this.selectedParentChildId == null) {
-      return [];
-    }
-    const st = this.parentChildren.find(c => c.id === this.selectedParentChildId);
-    if (!st) {
-      return [];
-    }
-    return this.exams.filter(e => examAppliesToStudent(e, st));
+    return this.role === 'parent' ? this.exams : [];
   }
 
   parentExamIsOpenable(exam: Exam): boolean {
-    return (exam.status ?? '').toLowerCase() !== 'upcoming';
+    return this.role !== 'parent' || this.selectedParentChildId != null;
   }
 
   onExamCardClick(exam: Exam): void {
-    if (this.role === 'parent' && !this.parentExamIsOpenable(exam)) {
-      return;
-    }
     this.selectExam(exam);
   }
 
@@ -1309,14 +1336,6 @@ export class ExamsComponent implements OnInit {
     } else {
       this.selectedParentChildId = null;
     }
-    if (!wantResults || this.selectedParentChildId == null) {
-      return;
-    }
-    const visible = this.parentFilteredExams;
-    const pick = visible.find(e => e.resultsPublished) ?? visible[0];
-    if (pick) {
-      this.selectExam(pick, 'results');
-    }
   }
 
   ngOnInit(): void {
@@ -1325,18 +1344,19 @@ export class ExamsComponent implements OnInit {
     if (this.role === 'parent') {
       this.detailTab = 'timetable';
       forkJoin({
-        children: this.parentService.getChildren(),
-        exams: this.examService.getParentPortalExamsAggregated()
-      }).subscribe(({ children, exams }) => {
+        children: this.parentService.getChildren()
+      }).subscribe(({ children }) => {
         this.parentChildren = children ?? [];
         this.classes = this.buildSyntheticClassesFromChildren(this.parentChildren);
-        this.exams = exams;
+        this.exams = [];
         this.applyParentRouteQueryIntent();
-        this.clearParentSelectionIfExamInvisible();
+        this.onParentChildChangeForExams();
       });
+      this.parentService.getExamNotificationUnreadCount().subscribe(n => (this.parentExamUnreadCount = Number(n || 0)));
       this.route.queryParamMap.pipe(skip(1), takeUntilDestroyed(this.destroyRef)).subscribe(() => {
         if (this.parentChildren.length) {
           this.applyParentRouteQueryIntent();
+          this.onParentChildChangeForExams();
         }
       });
       return;
@@ -1347,6 +1367,8 @@ export class ExamsComponent implements OnInit {
 
   onParentChildChangeForExams(): void {
     if (this.role === 'parent' && this.selectedParentChildId == null) {
+      this.parentChildLoading = false;
+      this.exams = [];
       this.selectedExam = null;
       this.scheduleDraft = [];
       this.marks = [];
@@ -1354,11 +1376,85 @@ export class ExamsComponent implements OnInit {
       this.rebuildSchedulePaging();
       return;
     }
+    if (this.role === 'parent') {
+      this.loadSelectedChildExamCards();
+      return;
+    }
     this.clearParentSelectionIfExamInvisible();
     const ex = this.selectedExam;
     if (ex && this.role === 'parent') {
       this.selectExam(ex, this.parentDetailTab);
     }
+  }
+
+  private loadSelectedChildExamCards(): void {
+    const sid = this.selectedParentChildId;
+    if (sid == null) {
+      this.parentChildLoading = false;
+      return;
+    }
+    const child = this.parentChildren.find(c => c.id === sid);
+    if (!child) {
+      this.parentChildLoading = false;
+      this.exams = [];
+      this.selectedExam = null;
+      return;
+    }
+    const previousExamId = this.selectedExam?.id ?? null;
+    const wantResults = this.route.snapshot.queryParamMap.get('tab') === 'results';
+    this.parentChildLoading = true;
+    this.parentService.getChildExams(sid).subscribe(rows => {
+      if (this.selectedParentChildId !== sid) {
+        this.parentChildLoading = false;
+        return;
+      }
+      this.exams = (rows ?? []).map(row => this.toChildScopedExamCard(row, child));
+      this.clearParentSelectionIfExamInvisible();
+      const keep = previousExamId != null ? this.exams.find(e => e.id === previousExamId) : null;
+      if (keep) {
+        this.selectExam(keep, this.parentDetailTab);
+        return;
+      }
+      if (!this.selectedExam && this.exams.length) {
+        const pick = wantResults
+          ? (this.exams.find(e => e.resultsPublished) ?? this.exams[0])
+          : this.exams[0];
+        this.selectExam(pick, wantResults ? 'results' : 'timetable');
+      }
+      this.parentChildLoading = false;
+    }, () => {
+      if (this.selectedParentChildId === sid) {
+        this.exams = [];
+      }
+      this.parentChildLoading = false;
+    });
+  }
+
+  private toChildScopedExamCard(summary: {
+    id: number;
+    name: string;
+    academicYearId?: number;
+    startDate?: string;
+    endDate?: string;
+    status: string;
+    resultsPublished: boolean;
+  }, child: Student): Exam {
+    const status = (summary.status ?? 'upcoming').toLowerCase();
+    const safeStatus: 'upcoming' | 'ongoing' | 'completed' | 'cancelled' =
+      status === 'ongoing' || status === 'completed' || status === 'cancelled' ? status : 'upcoming';
+    return {
+      id: Number(summary.id),
+      name: summary.name ?? '',
+      academicYearId: summary.academicYearId ?? 0,
+      startDate: summary.startDate ?? '',
+      endDate: summary.endDate ?? '',
+      status: safeStatus,
+      resultsPublished: !!summary.resultsPublished,
+      classIds: [child.classId],
+      classScopes: [{ classId: child.classId, sectionId: child.sectionId }],
+      scheduleSlots: [],
+      tenantId: child.tenantId ?? ''
+    };
   }
 
   private clearParentSelectionIfExamInvisible(): void {
@@ -1499,9 +1595,9 @@ export class ExamsComponent implements OnInit {
       name: exam.name || '',
       examType: exam.examType || '',
       boardCode: exam.boardCode || 'CBSE',
-      sessionType: exam.sessionType || 'ANNUAL',
+      sessionType: this.normalizeSessionTypeForApi(exam.sessionType),
       termCode: exam.termCode || 'TERM_1',
-      assessmentKind: exam.assessmentKind || 'THEORY',
+      assessmentKind: this.normalizeAssessmentKindForApi(exam.assessmentKind),
       markingScheme: exam.markingScheme || 'marks',
       maxPapersPerDayPerClass: Number((exam.gradingConfig?.['examOperations'] as Record<string, unknown> | undefined)?.['maxPapersPerDayPerClass'] || 0),
       requireRoom: Boolean((exam.gradingConfig?.['examOperations'] as Record<string, unknown> | undefined)?.['requireRoom']),
@@ -2177,9 +2273,15 @@ export class ExamsComponent implements OnInit {
         this.rebuildSchedulePaging();
         return;
       }
-      this.parentService.getChildExamMarks(sid, exam.id).subscribe(m => {
-        this.marks = m;
-        this.afterMarksLoaded();
+      this.parentService.getChildExamMarks(sid, exam.id).subscribe({
+        next: m => {
+          this.marks = m;
+          this.afterMarksLoaded();
+        },
+        error: () => {
+          this.marks = [];
+          this.afterMarksLoaded();
+        }
       });
       this.parentService.getChildExamSchedule(sid, exam.id).subscribe({
         next: slots => {
@@ -2199,6 +2301,9 @@ export class ExamsComponent implements OnInit {
           this.schedulePageIndex = 0;
           this.rebuildSchedulePaging();
         }
+      });
+      this.parentService.acknowledgeExamNotifications(exam.id).subscribe(() => {
+        this.parentService.getExamNotificationUnreadCount().subscribe(n => (this.parentExamUnreadCount = Number(n || 0)));
       });
       return;
     }
@@ -2289,6 +2394,11 @@ export class ExamsComponent implements OnInit {
     if (row.subjectName?.trim()) {
       set.add(row.subjectName.trim());
     }
+    for (const subject of this.subjectCatalog) {
+      if (subject.name?.trim()) {
+        set.add(subject.name.trim());
+      }
+    }
     return [...set].sort((a, b) => a.localeCompare(b));
   }
 
@@ -2373,6 +2483,28 @@ export class ExamsComponent implements OnInit {
 
   onClassOrSectionChange(): void {
     this.loadMarksEntryStudents();
+  }
+
+  downloadParentReportCardPdf(): void {
+    if (this.role !== 'parent' || this.selectedParentChildId == null || !this.selectedExam) {
+      return;
+    }
+    this.parentService.getChildExamReportCardPdf(this.selectedParentChildId, this.selectedExam.id).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `report-card-${this.selectedParentChildId}-${this.selectedExam!.id}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: () => {
+        this.parentService.queueChildExamReportCardJob(this.selectedParentChildId!, this.selectedExam!.id).subscribe(job => {
+          this.scheduleUiMessage = `Report card queued as async job #${job.id}. Download will be available once ready.`;
+          this.scheduleUiError = false;
+        });
+      }
+    });
   }
 
   loadMarksEntryStudents(): void {
@@ -2594,9 +2726,9 @@ export class ExamsComponent implements OnInit {
       name: this.newExam.name.trim(),
       examType: this.newExam.examType?.trim() || 'custom',
       boardCode: this.newExam.boardCode?.trim() || 'CBSE',
-      sessionType: this.newExam.sessionType?.trim() || 'ANNUAL',
+      sessionType: this.normalizeSessionTypeForApi(this.newExam.sessionType),
       termCode: this.newExam.termCode?.trim() || 'TERM_1',
-      assessmentKind: this.newExam.assessmentKind?.trim() || 'THEORY',
+      assessmentKind: this.normalizeAssessmentKindForApi(this.newExam.assessmentKind),
       markingScheme: this.newExam.markingScheme || 'marks',
       gradingConfig: {
         scheme: this.newExam.markingScheme || 'marks',
@@ -2663,6 +2795,28 @@ export class ExamsComponent implements OnInit {
           this.selectExam(createdExam);
         });
       });
+  }
+
+  private normalizeSessionTypeForApi(raw: string | null | undefined): string {
+    const normalized = (raw ?? '').trim().toUpperCase();
+    if (!normalized) return 'ANNUAL';
+    if (normalized === 'TERM') return 'HALF_YEARLY';
+    if (normalized === 'MONTHLY') return 'PERIODIC';
+    if (['PERIODIC', 'HALF_YEARLY', 'ANNUAL', 'BOARD'].includes(normalized)) {
+      return normalized;
+    }
+    return 'ANNUAL';
+  }
+
+  private normalizeAssessmentKindForApi(raw: string | null | undefined): string {
+    const normalized = (raw ?? '').trim().toUpperCase();
+    if (!normalized) return 'THEORY';
+    if (normalized === 'INTERNAL') return 'PROJECT';
+    if (normalized === 'COMPOSITE') return 'HYBRID';
+    if (['THEORY', 'PRACTICAL', 'VIVA', 'PROJECT', 'HYBRID'].includes(normalized)) {
+      return normalized;
+    }
+    return 'THEORY';
   }
 
   saveMarks(): void {
@@ -3101,9 +3255,8 @@ export class ExamsComponent implements OnInit {
   refreshExams(): void {
     if (this.role === 'parent') {
       forkJoin({
-        children: this.parentService.getChildren(),
-        exams: this.examService.getParentPortalExamsAggregated()
-      }).subscribe(({ children, exams }) => {
+        children: this.parentService.getChildren()
+      }).subscribe(({ children }) => {
         this.parentChildren = children ?? [];
         this.classes = this.buildSyntheticClassesFromChildren(this.parentChildren);
         if (
@@ -3113,21 +3266,13 @@ export class ExamsComponent implements OnInit {
           this.selectedParentChildId =
             this.parentChildren.length === 1 ? (this.parentChildren[0]?.id ?? null) : null;
         }
-        this.exams = exams;
-        this.clearParentSelectionIfExamInvisible();
-        this.clearSelectionIfNotVisible();
-        if (this.selectedExam) {
-          const sid = this.selectedExam.id;
-          const next = exams.find(e => e.id === sid);
-          if (next) {
-            this.selectExam(next);
-          }
-        }
+        this.onParentChildChangeForExams();
       });
       return;
     }
     this.academicService.getAcademicYears().subscribe(years => (this.academicYears = years));
     this.academicService.getClasses().subscribe(classes => (this.classes = classes));
+    this.academicService.getSubjectCatalog().subscribe(rows => (this.subjectCatalog = rows ?? []));
     if (this.staffUsesServerPaging) {
       this.fetchStaffExamsPage();
       return;
@@ -3174,6 +3319,7 @@ export class ExamsComponent implements OnInit {
   private loadReferenceData(): void {
     this.academicService.getAcademicYears().subscribe(years => (this.academicYears = years));
     this.academicService.getClasses().subscribe(classes => (this.classes = classes));
+    this.academicService.getSubjectCatalog().subscribe(rows => (this.subjectCatalog = rows ?? []));
     this.examService.getTemplates().subscribe(rows => (this.examTemplates = rows ?? []));
   }
 

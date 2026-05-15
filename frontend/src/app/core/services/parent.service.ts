@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Observable, forkJoin, of } from 'rxjs';
-import { delay, map } from 'rxjs/operators';
+import { catchError, delay, map, switchMap } from 'rxjs/operators';
 import {
   buildParentMockInitialReceipts,
   MOCK_PARENT_CHILDREN,
@@ -25,8 +25,10 @@ import {
   FeePayment,
   MarkRecord,
   ParentExamSummary,
+  ParentExamNotificationPreference,
   ParentFeeObligation,
   PaymentReceipt,
+  ReportGenerationJob,
   Student,
   TimetableEntry,
   TimetableGrid,
@@ -177,8 +179,71 @@ export class ParentService {
       return of(mockParentExamMarks(studentId, examId).map(m => ({ ...m }))).pipe(delay(120));
     }
     return this.api.get<any[]>(`/parent/children/${studentId}/exams/${examId}/marks`).pipe(
-      map(marks => marks.map(m => this.normalizeMarkRecord(m)))
+      map(marks => (marks ?? []).map(m => this.normalizeMarkRecord(m))),
+      // Defensive fallback: if scoped endpoint is empty/fails, resolve from child's published marks.
+      switchMap(marks =>
+        marks.length
+          ? of(marks)
+          : this.getChildMarks(studentId).pipe(map(all => all.filter(m => m.examId === examId)))
+      ),
+      catchError(() => this.getChildMarks(studentId).pipe(map(all => all.filter(m => m.examId === examId))))
     );
+  }
+
+  getChildExamReportCardPdf(studentId: number, examId: number): Observable<Blob> {
+    if (runtimeConfig.useMocks) {
+      return of(new Blob([])).pipe(delay(50));
+    }
+    return this.api.getBlob(`/parent/children/${studentId}/exams/${examId}/report-card/pdf`);
+  }
+
+  queueChildExamReportCardJob(studentId: number, examId: number): Observable<ReportGenerationJob> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        id: Date.now(),
+        requestId: `mock-${studentId}-${examId}`,
+        reportType: 'REPORT_CARD',
+        format: 'PDF',
+        status: 'QUEUED',
+        fileName: undefined,
+        contentType: undefined,
+        contentSizeBytes: undefined,
+        createdAt: new Date().toISOString(),
+      } as ReportGenerationJob).pipe(delay(80));
+    }
+    return this.api.post<ReportGenerationJob>(`/parent/children/${studentId}/exams/${examId}/report-card/jobs`, {});
+  }
+
+  getExamNotificationUnreadCount(): Observable<number> {
+    if (runtimeConfig.useMocks) return of(0).pipe(delay(60));
+    return this.api.get<number>('/parent/exam-notifications/unread-count');
+  }
+
+  acknowledgeExamNotifications(examId?: number, eventTypes?: string[]): Observable<void> {
+    if (runtimeConfig.useMocks) return of(void 0).pipe(delay(50));
+    return this.api.post<void>('/parent/exam-notifications/ack', {
+      examId: examId ?? null,
+      eventTypes: eventTypes ?? null,
+    });
+  }
+
+  getExamNotificationPreference(): Observable<ParentExamNotificationPreference> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        inAppEnabled: true,
+        smsEnabled: true,
+        emailEnabled: true,
+        digestEnabled: false,
+      }).pipe(delay(70));
+    }
+    return this.api.get<ParentExamNotificationPreference>('/parent/exam-notifications/preferences');
+  }
+
+  updateExamNotificationPreference(req: Partial<ParentExamNotificationPreference>): Observable<ParentExamNotificationPreference> {
+    if (runtimeConfig.useMocks) {
+      return this.getExamNotificationPreference().pipe(map(base => ({ ...base, ...req })));
+    }
+    return this.api.put<ParentExamNotificationPreference>('/parent/exam-notifications/preferences', req);
   }
 
   private normalizeMarkRecord(mark: any): MarkRecord {
