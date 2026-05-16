@@ -42,6 +42,8 @@ spring:
       leak-detection-threshold: ${DB_POOL_LEAK_DETECTION_MS:0}
 
   jpa:
+    # Reduces session scope and avoids lazy DB access during response rendering.
+    open-in-view: ${SPRING_JPA_OPEN_IN_VIEW:false}
     hibernate:
       # validate: fail fast if @Entity columns/types differ from MySQL (common causes: edited migrations, pending Flyway version).
       ddl-auto: ${JPA_DDL_AUTO:validate}
@@ -167,6 +169,20 @@ app:
       # /verify-email?token=… for email triggers. Primary: AUTH_EMAIL_VER_*; alias: APP_PUBLIC_SPA_BASE_URL.
       # Profile dev/local default to http://localhost:4200; prod-like profiles must set one of the env vars.
       public-spa-base-url: ${AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL:${APP_PUBLIC_SPA_BASE_URL:}}
+
+  rbac:
+    bootstrap:
+      # Async by default so app can become ready quickly on large multi-tenant datasets.
+      # Set APP_RBAC_BOOTSTRAP_BLOCKING_STARTUP=true for strict boot-time seeding.
+      blocking-startup: ${APP_RBAC_BOOTSTRAP_BLOCKING_STARTUP:false}
+      # Per-tenant retry policy for transient DB/network hiccups during startup seeding.
+      max-attempts-per-tenant: ${APP_RBAC_BOOTSTRAP_MAX_ATTEMPTS_PER_TENANT:2}
+      retry-backoff-ms: ${APP_RBAC_BOOTSTRAP_RETRY_BACKOFF_MS:250}
+      executor:
+        # Dedicated bounded pool for RBAC bootstrap (prevents contention with websocket/common async pools).
+        pool-size: ${APP_RBAC_BOOTSTRAP_EXECUTOR_POOL_SIZE:2}
+        queue-capacity: ${APP_RBAC_BOOTSTRAP_EXECUTOR_QUEUE_CAPACITY:100}
+        await-termination-seconds: ${APP_RBAC_BOOTSTRAP_EXECUTOR_AWAIT_TERMINATION_SECONDS:30}
 
   fees:
     reconciliation:

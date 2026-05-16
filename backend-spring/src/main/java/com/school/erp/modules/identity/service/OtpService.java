@@ -226,6 +226,19 @@ public class OtpService {
             log.info("DEV MODE OTP code={}", otpCode);
         }
 
+        String templateId = smsTemplate != null ? smsTemplate.getTemplateId() : null;
+        log.info(
+                "OTP delivery outcome requestId={} tenantId={} purpose={} phone={} accepted={} provider={} providerStatus={} templateId={} error={}",
+                requestId,
+                tenantId,
+                otpPurpose,
+                national,
+                accepted,
+                smsService.getProviderName(),
+                smsResponse.getProviderStatus(),
+                templateId,
+                smsResponse.getErrorMessage() != null ? smsResponse.getErrorMessage() : "-");
+
         return responseBuilder.build();
     }
 
