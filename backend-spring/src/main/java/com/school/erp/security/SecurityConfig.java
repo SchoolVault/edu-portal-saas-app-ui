@@ -56,6 +56,13 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh-token").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/email-verification/confirm").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/leads").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/contact/**").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/newsletter/**").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/features/**").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/testimonials/**").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/videos/**").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/brochure").permitAll();
                     auth.requestMatchers("/api/v1/fees/webhooks/**").permitAll();
                     auth.requestMatchers("/api/v1/payroll/webhooks/**").permitAll();
                     auth.requestMatchers("/api/v1/notifications/webhooks/**").permitAll();

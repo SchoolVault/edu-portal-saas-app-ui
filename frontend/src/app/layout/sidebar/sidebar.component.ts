@@ -30,6 +30,7 @@ const SIDEBAR_EXCLUDED_NAV_ROUTES = new Set<string>(['/app/staff']);
           <a *ngFor="let item of getItemsBySection(sectionKey)"
              [routerLink]="item.route"
              routerLinkActive="active"
+             [routerLinkActiveOptions]="{ exact: true }"
              class="nav-item"
              (click)="navigateRequest.emit()"
              [attr.data-testid]="'sidebar-nav-' + item.route.split('/').pop()">

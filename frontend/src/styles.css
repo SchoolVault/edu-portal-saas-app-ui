@@ -39,6 +39,11 @@
   --clr-subject-accent: var(--clr-primary);
   --font-heading: 'Avenir Next', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   --font-body: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --marketing-hero-bg: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--clr-primary) 6%, var(--clr-surface)) 0%,
+    color-mix(in srgb, var(--clr-accent) 5%, var(--clr-surface)) 100%
+  );
 }
 
 [data-theme='dark'] {
@@ -70,6 +75,11 @@
   --surface-ring: color-mix(in srgb, var(--clr-primary) 22%, var(--clr-border));
   /** Dark: mint primary on charcoal reads muddy in dense tables — match success / Active badge green */
   --clr-subject-accent: var(--clr-success);
+  --marketing-hero-bg: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--clr-primary) 22%, var(--clr-surface)) 0%,
+    color-mix(in srgb, var(--clr-info) 14%, var(--clr-surface)) 100%
+  );
 }
 
 [data-theme='dark'] html,
@@ -81,6 +91,20 @@
 }
 
 * { box-sizing: border-box; }
+
+/* Unified marketing shell tokens (landing + public pages + auth crossover). */
+.marketing-hero-band {
+  background: var(--marketing-hero-bg);
+}
+.marketing-page-card {
+  background: linear-gradient(
+    165deg,
+    var(--clr-surface) 0%,
+    color-mix(in srgb, var(--clr-primary) 4%, var(--clr-surface)) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--clr-primary) 14%, var(--clr-border));
+  box-shadow: var(--shadow-sm);
+}
 
 /* Universal media safety: prevents overflow on narrow devices across all modules/roles. */
 img,

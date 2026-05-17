@@ -165,6 +165,13 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['super_admin'],
     sectionKey: 'nav.section.platform',
   },
+  {
+    labelKey: 'nav.leads',
+    icon: 'bi-funnel-fill',
+    route: '/app/super-admin/leads',
+    roles: ['super_admin'],
+    sectionKey: 'nav.section.platform',
+  },
   { labelKey: 'nav.subscriptions', icon: 'bi-receipt', route: '/app/platform-subscriptions', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
   { labelKey: 'nav.broadcasts', icon: 'bi-megaphone-fill', route: '/app/platform-broadcasts', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
   { labelKey: 'nav.systemHealth', icon: 'bi-heart-pulse', route: '/app/platform-health', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
