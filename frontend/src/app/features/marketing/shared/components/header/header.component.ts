@@ -11,7 +11,10 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
       <div class="sv-container sv-header__inner">
         <a routerLink="/" class="sv-logo" aria-label="SchoolVault home">
           <span class="sv-logo-mark" aria-hidden="true">SV</span>
-          <span class="sv-logo-text">SchoolVault</span>
+          <span class="sv-logo-text-wrap">
+            <span class="sv-logo-text">SchoolVault</span>
+            <small class="sv-logo-subtext">Smart. Simple. Secure.</small>
+          </span>
         </a>
         <button
           type="button"
@@ -23,11 +26,11 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
           <span>{{ menuOpen() ? 'Close' : 'Menu' }}</span>
         </button>
         <nav class="sv-nav" aria-label="Primary">
-          <a routerLink="/features" routerLinkActive="active">Features</a>
+          <a routerLink="/features" routerLinkActive="active">Modules</a>
           <a routerLink="/videos" routerLinkActive="active">Videos</a>
           <a routerLink="/testimonials" routerLinkActive="active">Customers</a>
-          <a routerLink="/request-demo" class="sv-btn sv-btn-primary">Request a Demo</a>
-          <a routerLink="/login" class="sv-btn sv-btn-app">Switch to App</a>
+          <a routerLink="/request-demo" class="sv-btn sv-btn-primary">Request Callback</a>
+          <a routerLink="/login" class="sv-btn sv-btn-app">Login</a>
           <button type="button" class="sv-btn sv-btn-theme" (click)="toggleTheme()">
             <span class="sv-theme-icon" [class.is-dark]="isDarkMode()">{{ isDarkMode() ? '☀️' : '🌙' }}</span>
             <span>{{ isDarkMode() ? 'Light' : 'Dark' }}</span>
@@ -35,11 +38,11 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
         </nav>
       </div>
       <nav class="sv-mobile-nav" *ngIf="menuOpen()" aria-label="Primary mobile">
-        <a routerLink="/features" routerLinkActive="active" (click)="closeMenu()">Features</a>
+        <a routerLink="/features" routerLinkActive="active" (click)="closeMenu()">Modules</a>
         <a routerLink="/videos" routerLinkActive="active" (click)="closeMenu()">Videos</a>
         <a routerLink="/testimonials" routerLinkActive="active" (click)="closeMenu()">Customers</a>
-        <a routerLink="/request-demo" class="sv-btn sv-btn-primary" (click)="closeMenu()">Request a Demo</a>
-        <a routerLink="/login" class="sv-btn sv-btn-app" (click)="closeMenu()">Switch to App</a>
+        <a routerLink="/request-demo" class="sv-btn sv-btn-primary" (click)="closeMenu()">Request Callback</a>
+        <a routerLink="/login" class="sv-btn sv-btn-app" (click)="closeMenu()">Login</a>
         <button type="button" class="sv-btn sv-btn-theme" (click)="toggleTheme()">
           <span class="sv-theme-icon" [class.is-dark]="isDarkMode()">{{ isDarkMode() ? '☀️' : '🌙' }}</span>
           <span>{{ isDarkMode() ? 'Light' : 'Dark' }}</span>
@@ -51,8 +54,8 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
     :host { display:block; }
     .sv-header { position: sticky; top: 0; z-index: 50; backdrop-filter: saturate(160%) blur(14px); background: color-mix(in srgb, var(--clr-surface) 88%, transparent); border-bottom: 1px solid var(--clr-border); transition: background .2s ease, border-color .2s ease; }
     .sv-header.dark { background: color-mix(in srgb, var(--clr-surface) 92%, transparent); border-bottom-color: var(--clr-border); }
-    .sv-container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
-    .sv-header__inner { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; }
+    .sv-container { width: 100%; max-width: 100%; margin: 0 auto; padding: 0 clamp(26px, 4vw, 68px); }
+    .sv-header__inner { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 0; }
     .sv-mobile-toggle {
       display: none;
       border: 1px solid var(--clr-border);
@@ -73,6 +76,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
       font-size: 1.4rem;
       color: var(--clr-primary);
       text-decoration: none;
+      margin-left: clamp(10px, 1.3vw, 18px);
     }
     .sv-logo-mark {
       width: 34px;
@@ -90,17 +94,30 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
       box-shadow: 0 6px 14px color-mix(in srgb, var(--clr-primary) 24%, transparent);
       flex-shrink: 0;
     }
-    .sv-logo-text {
+    .sv-logo-text-wrap {
+      display: inline-flex;
+      flex-direction: column;
       line-height: 1;
+      gap: 1px;
+    }
+    .sv-logo-text {
       letter-spacing: .01em;
     }
+    .sv-logo-subtext {
+      font-family: 'Manrope', 'Segoe UI', system-ui, sans-serif;
+      font-size: .62rem;
+      font-weight: 600;
+      letter-spacing: .02em;
+      color: var(--clr-text-secondary);
+    }
     .sv-header.dark .sv-logo { color: var(--clr-text); }
-    .sv-nav { display: flex; gap: 28px; align-items: center; }
-    .sv-nav a { color: var(--clr-text); font-weight: 500; text-decoration: none; }
+    .sv-nav { display: flex; gap: 16px; align-items: center; margin-left: auto; padding-right: clamp(18px, 2.2vw, 36px); }
+    .sv-nav a { color: var(--clr-text); font-weight: 600; text-decoration: none; font-size: .94rem; display: inline-flex; align-items: center; gap: 4px; }
+    .sv-caret { font-size: .72rem; opacity: .82; }
     .sv-nav a.active { color: var(--clr-primary); }
     .sv-header.dark .sv-nav a { color: var(--clr-text); }
     .sv-header.dark .sv-nav a.active { color: var(--clr-primary-light); }
-    .sv-btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: .9rem; text-decoration: none; border: 1px solid transparent; cursor: pointer; background: transparent; }
+    .sv-btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px; border-radius: 999px; font-weight: 700; font-size: .92rem; text-decoration: none; border: 1px solid transparent; cursor: pointer; background: transparent; }
     .sv-btn-primary { background: var(--clr-accent); color: #fff !important; }
     .sv-btn-app { background: var(--clr-primary); color: #fff !important; }
     .sv-btn-theme { border-color: var(--clr-border); color: var(--clr-primary); }
@@ -117,7 +134,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
     }
     .sv-mobile-nav {
       display: none;
-      max-width: 1180px;
+      max-width: 100%;
       margin: 0 auto;
       padding: 0 24px 14px;
       gap: 10px;
