@@ -29,7 +29,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
           <a routerLink="/features" routerLinkActive="active">Modules</a>
           <a routerLink="/videos" routerLinkActive="active">Videos</a>
           <a routerLink="/testimonials" routerLinkActive="active">Customers</a>
-          <a routerLink="/request-demo" class="sv-btn sv-btn-primary">Request a Demo</a>
+          <a routerLink="/request-demo" class="sv-btn sv-btn-primary">Request Callback</a>
           <a routerLink="/login" class="sv-btn sv-btn-app">Login</a>
           <button type="button" class="sv-btn sv-btn-theme" (click)="toggleTheme()">
             <span class="sv-theme-icon" [class.is-dark]="isDarkMode()">{{ isDarkMode() ? '☀️' : '🌙' }}</span>
@@ -41,7 +41,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
         <a routerLink="/features" routerLinkActive="active" (click)="closeMenu()">Modules</a>
         <a routerLink="/videos" routerLinkActive="active" (click)="closeMenu()">Videos</a>
         <a routerLink="/testimonials" routerLinkActive="active" (click)="closeMenu()">Customers</a>
-        <a routerLink="/request-demo" class="sv-btn sv-btn-primary" (click)="closeMenu()">Request a Demo</a>
+        <a routerLink="/request-demo" class="sv-btn sv-btn-primary" (click)="closeMenu()">Request Callback</a>
         <a routerLink="/login" class="sv-btn sv-btn-app" (click)="closeMenu()">Login</a>
         <button type="button" class="sv-btn sv-btn-theme" (click)="toggleTheme()">
           <span class="sv-theme-icon" [class.is-dark]="isDarkMode()">{{ isDarkMode() ? '☀️' : '🌙' }}</span>
@@ -112,12 +112,12 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
     }
     .sv-header.dark .sv-logo { color: var(--clr-text); }
     .sv-nav { display: flex; gap: 16px; align-items: center; margin-left: auto; padding-right: clamp(18px, 2.2vw, 36px); }
-    .sv-nav a { color: var(--clr-text); font-weight: 500; text-decoration: none; font-size: .92rem; display: inline-flex; align-items: center; gap: 4px; }
+    .sv-nav a { color: var(--clr-text); font-weight: 600; text-decoration: none; font-size: .94rem; display: inline-flex; align-items: center; gap: 4px; }
     .sv-caret { font-size: .72rem; opacity: .82; }
     .sv-nav a.active { color: var(--clr-primary); }
     .sv-header.dark .sv-nav a { color: var(--clr-text); }
     .sv-header.dark .sv-nav a.active { color: var(--clr-primary-light); }
-    .sv-btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: .9rem; text-decoration: none; border: 1px solid transparent; cursor: pointer; background: transparent; }
+    .sv-btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px; border-radius: 999px; font-weight: 700; font-size: .92rem; text-decoration: none; border: 1px solid transparent; cursor: pointer; background: transparent; }
     .sv-btn-primary { background: var(--clr-accent); color: #fff !important; }
     .sv-btn-app { background: var(--clr-primary); color: #fff !important; }
     .sv-btn-theme { border-color: var(--clr-border); color: var(--clr-primary); }

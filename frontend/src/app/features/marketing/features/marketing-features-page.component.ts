@@ -84,6 +84,8 @@ import { FooterComponent } from '../shared/components/footer/footer.component';
     .sv-btn-ghost:hover { background: var(--sv-surface); border-color: var(--sv-primary); }
     .form-control { width: 100%; padding: 12px 14px; border: 1px solid var(--sv-border); border-radius: var(--sv-radius); background: var(--sv-surface); color: var(--sv-ink); font-family: inherit; font-size: 1rem; }
     .form-control:focus { outline: none; border-color: var(--sv-primary); box-shadow: 0 0 0 3px rgba(27,58,48,.12); }
+    .form-control::placeholder { color: color-mix(in srgb, var(--sv-muted) 88%, var(--sv-ink) 12%); opacity: 1; }
+    [data-theme='dark'] .form-control::placeholder { color: color-mix(in srgb, #ffffff 86%, #cbd5e1 14%); opacity: 1; }
     .feature-section-head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:16px; }
     .feature-nav-btns { display:flex; gap:8px; flex-wrap:wrap; }
     .feature-rail {

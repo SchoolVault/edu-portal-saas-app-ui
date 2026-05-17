@@ -43,7 +43,7 @@ import { FooterComponent } from '../shared/components/footer/footer.component';
           </div>
           <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap">
             <button class="sv-btn sv-btn-primary" type="submit" [disabled]="submitting || form.invalid">{{ submitting ? 'Sending...' : 'Submit' }}</button>
-            <a class="sv-btn sv-btn-ghost" routerLink="/login">Go to Login</a>
+            <a class="sv-btn sv-btn-ghost" routerLink="/login">Login</a>
           </div>
           <div class="lead-success-msg" *ngIf="leadReference">
             <strong>Thank you! Your demo request has been submitted.</strong>
@@ -94,6 +94,9 @@ import { FooterComponent } from '../shared/components/footer/footer.component';
     .sv-form label { display: block; font-weight: 500; margin-bottom: 6px; color: var(--sv-ink); font-size: 0.95rem; }
     .sv-form .form-control, .sv-form textarea { width: 100%; padding: 12px 14px; border: 1px solid var(--sv-border); border-radius: var(--sv-radius); background: var(--sv-surface); color: var(--sv-ink); font-family: inherit; font-size: 1rem; }
     .sv-form .form-control:focus, .sv-form textarea:focus { outline: none; border-color: var(--sv-primary); box-shadow: 0 0 0 3px rgba(27, 58, 48, 0.12); }
+    .sv-form .form-control::placeholder, .sv-form textarea::placeholder { color: color-mix(in srgb, var(--sv-muted) 88%, var(--sv-ink) 12%); opacity: 1; }
+    [data-theme='dark'] .sv-form .form-control::placeholder,
+    [data-theme='dark'] .sv-form textarea::placeholder { color: color-mix(in srgb, #ffffff 86%, #cbd5e1 14%); opacity: 1; }
     .lead-success-msg {
       margin-top: 14px;
       padding: 12px 14px;

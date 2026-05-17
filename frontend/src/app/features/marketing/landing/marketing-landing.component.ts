@@ -70,7 +70,7 @@ interface DashboardNotification {
             </p>
             <div class="sv-showcase-cta">
               <a class="sv-btn sv-btn-primary" routerLink="/request-demo">Request a Demo</a>
-              <a class="sv-btn sv-btn-ghost sv-btn-watch" routerLink="/features"><span class="play">▶</span>Watch Demo</a>
+              <a class="sv-btn sv-btn-ghost sv-btn-watch" routerLink="/videos"><span class="play">▶</span>Watch Demo</a>
             </div>
             <div class="sv-pill-row">
               <div class="sv-info-pill" *ngFor="let item of heroPills">
@@ -215,10 +215,6 @@ interface DashboardNotification {
             <ul class="pillar-bullets">
               <li *ngFor="let bullet of activePillar().bullets">{{ bullet }}</li>
             </ul>
-            <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap">
-              <a class="sv-btn sv-btn-primary" routerLink="/request-demo">Book a guided walkthrough</a>
-              <a class="sv-btn sv-btn-ghost" routerLink="/features">Explore all modules</a>
-            </div>
           </div>
         </div>
       </div>
@@ -240,8 +236,8 @@ interface DashboardNotification {
           </div>
         </div>
         <div style="margin-top:24px; display:flex; gap:12px; flex-wrap:wrap">
-          <a class="sv-btn sv-btn-ghost" routerLink="/features">View all features</a>
-          <a class="sv-btn sv-btn-ghost" routerLink="/testimonials">Read testimonials</a>
+          <a class="sv-btn sv-btn-pill-orange" routerLink="/features">View all features</a>
+          <a class="sv-btn sv-btn-pill-green" routerLink="/testimonials">Read testimonials</a>
         </div>
       </div>
     </section>
@@ -249,9 +245,20 @@ interface DashboardNotification {
     <section class="sv-section">
       <div class="sv-container">
         <span class="sv-eyebrow">Loved by school leaders</span>
-        <h2 style="margin-top:10px">Trusted by School Leaders</h2>
-        <div class="sv-grid" style="margin-top:28px">
-          <sv-testimonial-card *ngFor="let testimonial of testimonials()" [t]="testimonial" />
+        <div class="feature-section-head">
+          <div>
+            <h2 style="margin-top:10px">Trusted by School Leaders</h2>
+            <div class="sv-testimonial-stars" aria-label="5 star customer satisfaction">★★★★★</div>
+          </div>
+          <div class="feature-nav-btns">
+            <button type="button" class="sv-btn sv-btn-ghost" (click)="scrollTestimonialRail(-1)">← Prev</button>
+            <button type="button" class="sv-btn sv-btn-ghost" (click)="scrollTestimonialRail(1)">Next →</button>
+          </div>
+        </div>
+        <div class="testimonial-rail" #testimonialRail>
+          <div class="testimonial-rail-item" *ngFor="let testimonial of testimonials()">
+            <sv-testimonial-card [t]="testimonial" />
+          </div>
         </div>
       </div>
     </section>
@@ -259,8 +266,14 @@ interface DashboardNotification {
     <section class="sv-section">
       <div class="sv-container">
         <span class="sv-eyebrow">Why SchoolVault</span>
-        <h2 style="margin-top:10px">Built for real school operations</h2>
-        <div class="benefit-grid">
+        <div class="feature-section-head">
+          <h2 style="margin-top:10px">Built for real school operations</h2>
+          <div class="feature-nav-btns">
+            <button type="button" class="sv-btn sv-btn-ghost" (click)="scrollBenefitRail(-1)">← Prev</button>
+            <button type="button" class="sv-btn sv-btn-ghost" (click)="scrollBenefitRail(1)">Next →</button>
+          </div>
+        </div>
+        <div class="benefit-grid" #benefitRail>
           <article class="benefit-card">
             <h3>Fast implementation</h3>
             <p class="sv-muted">Go live in phases with guided data migration, role-wise training, and zero operational disruption.</p>
@@ -272,6 +285,22 @@ interface DashboardNotification {
           <article class="benefit-card">
             <h3>Parent trust and retention</h3>
             <p class="sv-muted">Better communication, timely updates, and consistent service quality improve parent experience.</p>
+          </article>
+          <article class="benefit-card">
+            <h3>Finance control and fee discipline</h3>
+            <p class="sv-muted">Standardize fee plans, automate reminders, and monitor collection performance with clear ageing and defaulter insights.</p>
+          </article>
+          <article class="benefit-card">
+            <h3>Academic governance</h3>
+            <p class="sv-muted">Align curriculum planning, exam cycles, report card processes, and teacher accountability in one structured academic workflow.</p>
+          </article>
+          <article class="benefit-card">
+            <h3>Audit-ready compliance</h3>
+            <p class="sv-muted">Maintain role-based access, action logs, and approval trails to strengthen institutional governance and compliance readiness.</p>
+          </article>
+          <article class="benefit-card">
+            <h3>Actionable leadership insights</h3>
+            <p class="sv-muted">Track admissions momentum, attendance health, fee trends, and operational bottlenecks from one executive command center.</p>
           </article>
         </div>
       </div>
@@ -285,6 +314,13 @@ interface DashboardNotification {
             <p class="sv-muted">
               Share your details and our team will help you evaluate the right EduPortal rollout plan.
             </p>
+            <ul class="sv-demo-points">
+              <li>Role-wise walkthrough tailored for owners, principals, and operations teams.</li>
+              <li>Live platform demo with your real workflow scenarios and expected outcomes.</li>
+              <li>Implementation blueprint covering onboarding timeline, data migration, and training.</li>
+              <li>Transparent pricing guidance and module recommendations based on school size.</li>
+              <li>Security and compliance overview including access controls and audit readiness.</li>
+            </ul>
           </div>
           <form class="sv-form sv-card" [formGroup]="leadForm" (ngSubmit)="submitLead()">
               <div class="row g-3">
@@ -317,9 +353,9 @@ interface DashboardNotification {
               </div>
               <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap">
                 <button class="sv-btn sv-btn-primary" type="submit" [disabled]="submitting() || leadForm.invalid">
-                  {{ submitting() ? 'Submitting...' : 'Submit Lead' }}
+                  {{ submitting() ? 'Submitting...' : 'Request Callback' }}
                 </button>
-                <a class="sv-btn sv-btn-ghost" routerLink="/login">Login Instead</a>
+                <a class="sv-btn sv-btn-pill-green" routerLink="/login">Login Instead</a>
               </div>
               <div class="lead-success-msg" *ngIf="leadReference()">
                 <strong>Thank you! Your request has been received.</strong>
@@ -418,6 +454,25 @@ interface DashboardNotification {
       line-height: 1;
       opacity: .9;
     }
+    .sv-btn-watch {
+      border-color: color-mix(in srgb, var(--sv-primary) 78%, #0f766e 22%);
+      background: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--sv-primary) 86%, #22c55e 14%) 0%,
+        color-mix(in srgb, var(--sv-primary) 70%, #15803d 30%) 100%
+      );
+      color: #fff;
+    }
+    .sv-btn-watch:hover {
+      border-color: color-mix(in srgb, var(--sv-primary) 86%, #0f766e 14%);
+      background: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--sv-primary) 92%, #22c55e 8%) 0%,
+        color-mix(in srgb, var(--sv-primary) 78%, #15803d 22%) 100%
+      );
+      color: #fff;
+      transform: translateY(-1px);
+    }
     .sv-pill-row {
       margin-top: 14px;
       display: flex;
@@ -426,31 +481,114 @@ interface DashboardNotification {
       align-items: center;
     }
     .sv-info-pill {
+      position: relative;
+      overflow: hidden;
       display: flex;
       align-items: center;
-      gap: 8px;
-      border: 1px solid var(--sv-border);
-      border-radius: 12px;
-      background: color-mix(in srgb, var(--sv-surface) 88%, var(--sv-primary) 12%);
-      padding: 7px 9px;
-      min-width: 145px;
+      gap: 10px;
+      border: 1px solid color-mix(in srgb, var(--sv-border) 86%, transparent);
+      border-radius: 14px;
+      background: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--sv-surface) 92%, var(--sv-primary) 8%) 0%,
+        color-mix(in srgb, var(--sv-surface) 84%, var(--sv-primary) 16%) 100%
+      );
+      padding: 8px 10px;
+      min-width: 154px;
+      box-shadow: 0 6px 14px color-mix(in srgb, var(--sv-primary) 10%, transparent);
+      transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease, background .22s ease;
+    }
+    .sv-info-pill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        120deg,
+        transparent 22%,
+        color-mix(in srgb, #fff 22%, transparent) 44%,
+        transparent 68%
+      );
+      opacity: 0;
+      transform: translateX(-20px);
+      transition: opacity .24s ease, transform .24s ease;
+      pointer-events: none;
+    }
+    .sv-info-pill:hover {
+      transform: translateY(-3px);
+      border-color: color-mix(in srgb, var(--sv-primary) 38%, var(--sv-border));
+      box-shadow: 0 12px 22px color-mix(in srgb, var(--sv-primary) 20%, transparent);
+      background: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--sv-surface) 86%, var(--sv-primary) 14%) 0%,
+        color-mix(in srgb, var(--sv-surface) 76%, var(--sv-primary) 24%) 100%
+      );
+    }
+    .sv-info-pill:hover::after {
+      opacity: .9;
+      transform: translateX(0);
     }
     .sv-info-pill__icon {
-      font-size: 1rem;
-      width: 22px;
+      font-size: .96rem;
+      width: 28px;
+      height: 28px;
       text-align: center;
+      border-radius: 9px;
+      border: 1px solid color-mix(in srgb, var(--sv-border) 82%, transparent);
+      background: color-mix(in srgb, var(--sv-surface) 78%, var(--sv-primary) 22%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 16%, transparent);
+      flex-shrink: 0;
+      transition: transform .2s ease, background .2s ease;
+    }
+    .sv-info-pill:hover .sv-info-pill__icon {
+      transform: translateY(-1px);
+      background: color-mix(in srgb, var(--sv-primary) 26%, var(--sv-surface));
     }
     .sv-info-pill strong {
       display: block;
-      font-size: .78rem;
-      line-height: 1.1;
+      font-size: .79rem;
+      line-height: 1.15;
+      color: var(--sv-ink);
+      letter-spacing: .01em;
+      font-weight: 700;
     }
     .sv-info-pill small {
       display: block;
       color: var(--sv-muted);
-      font-size: .68rem;
-      line-height: 1.1;
+      font-size: .66rem;
+      line-height: 1.2;
       margin-top: 2px;
+      font-weight: 600;
+      opacity: .9;
+    }
+    [data-theme='dark'] .sv-info-pill {
+      border-color: color-mix(in srgb, #8ea8c3 28%, transparent);
+      background: linear-gradient(145deg, #0e2741 0%, #12314f 100%);
+      box-shadow: 0 8px 18px rgba(1, 10, 22, 0.45);
+    }
+    [data-theme='dark'] .sv-info-pill:hover {
+      border-color: color-mix(in srgb, var(--sv-primary) 52%, #8ea8c3 48%);
+      background: linear-gradient(145deg, #12314f 0%, #174060 100%);
+      box-shadow: 0 14px 26px rgba(1, 10, 22, 0.6);
+    }
+    [data-theme='dark'] .sv-info-pill__icon {
+      border-color: color-mix(in srgb, #8ea8c3 30%, transparent);
+      background: color-mix(in srgb, var(--sv-primary) 34%, #10293f 66%);
+    }
+    [data-theme='dark'] .sv-info-pill strong {
+      color: #e6f0f8;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .sv-info-pill,
+      .sv-info-pill::after,
+      .sv-info-pill__icon {
+        transition: none;
+      }
+      .sv-info-pill:hover {
+        transform: none;
+      }
     }
     .sv-showcase-visual {
       position: relative;
@@ -993,7 +1131,15 @@ interface DashboardNotification {
     .trust-item--2 { animation-delay: .08s; }
     .trust-item--3 { animation-delay: .14s; }
     .trust-item--4 { animation-delay: .2s; }
-    .benefit-grid { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); margin-top:18px; }
+    .benefit-grid {
+      margin-top: 18px;
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      padding-bottom: 4px;
+      scrollbar-width: thin;
+    }
     .benefit-card {
       background: linear-gradient(
         160deg,
@@ -1005,6 +1151,8 @@ interface DashboardNotification {
       padding:22px;
       box-shadow: var(--sv-shadow-sm);
       transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+      flex: 0 0 clamp(260px, 32vw, 380px);
+      scroll-snap-align: start;
     }
     .benefit-card:hover {
       transform: translateY(-4px);
@@ -1023,7 +1171,7 @@ interface DashboardNotification {
       margin-top: 20px;
       display: grid;
       grid-template-columns: minmax(220px, .8fr) minmax(0, 1.4fr);
-      gap: 14px;
+      gap: 18px;
       align-items: start;
     }
     .pillar-tabs {
@@ -1053,24 +1201,28 @@ interface DashboardNotification {
         var(--sv-surface) 0%,
         color-mix(in srgb, var(--sv-primary) 7%, var(--sv-surface)) 100%
       );
-      padding: 20px;
+      padding: 22px;
       box-shadow: var(--sv-shadow-sm);
+    }
+    .pillar-panel h3 {
+      line-height: 1.16;
+      max-width: 720px;
     }
     .pillar-metrics {
       margin-top: 14px;
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+      gap: 10px;
     }
     .pillar-metric {
       border: 1px solid color-mix(in srgb, var(--sv-border) 84%, transparent);
       border-radius: 12px;
       background: color-mix(in srgb, var(--sv-surface) 88%, var(--sv-primary) 12%);
-      padding: 8px 10px;
-      min-height: 64px;
+      padding: 10px 11px;
+      min-height: 72px;
       display: grid;
       align-content: center;
-      gap: 2px;
+      gap: 3px;
     }
     .pillar-metric strong {
       font-size: 1rem;
@@ -1083,22 +1235,39 @@ interface DashboardNotification {
       line-height: 1.2;
     }
     .pillar-bullets {
-      margin: 12px 0 0;
+      margin: 14px 0 0;
       padding: 0;
       color: var(--sv-ink);
       list-style: none;
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
     }
     .pillar-bullets li {
+      position: relative;
       margin: 0;
       border: 1px solid color-mix(in srgb, var(--sv-border) 84%, transparent);
       border-radius: 12px;
       background: color-mix(in srgb, var(--sv-surface) 88%, var(--sv-primary) 12%);
-      padding: 8px 10px;
+      padding: 9px 10px 9px 34px;
       font-size: .78rem;
-      line-height: 1.3;
+      line-height: 1.34;
+    }
+    .pillar-bullets li::before {
+      content: '✓';
+      position: absolute;
+      left: 10px;
+      top: 9px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .65rem;
+      font-weight: 700;
+      color: #fff;
+      background: color-mix(in srgb, var(--sv-primary) 80%, #0f766e);
     }
     .feature-section-head { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; }
     .feature-nav-btns { display:flex; gap:8px; flex-wrap:wrap; }
@@ -1119,6 +1288,31 @@ interface DashboardNotification {
     .feature-rail-item:hover {
       transform: translateY(-4px);
     }
+    .sv-testimonial-stars {
+      margin-top: 6px;
+      font-size: 1.05rem;
+      letter-spacing: .14em;
+      color: #f3b347;
+      text-shadow: 0 2px 10px rgba(243, 179, 71, 0.35);
+      user-select: none;
+    }
+    .testimonial-rail {
+      margin-top: 20px;
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      padding-bottom: 4px;
+      scrollbar-width: thin;
+    }
+    .testimonial-rail-item {
+      flex: 0 0 clamp(280px, 34vw, 430px);
+      scroll-snap-align: start;
+      transition: transform .22s ease;
+    }
+    .testimonial-rail-item:hover {
+      transform: translateY(-4px);
+    }
     h1, h2, h3 { font-family: var(--sv-font-heading); color: var(--sv-ink); letter-spacing: -0.02em; line-height: 1.1; margin: 0; }
     h1 { font-weight: 700; font-size: clamp(2.25rem, 4.5vw, 3.5rem); }
     h2 { font-weight: 600; font-size: clamp(1.625rem, 3vw, 2.25rem); }
@@ -1132,6 +1326,70 @@ interface DashboardNotification {
     .sv-btn-secondary:hover { background: var(--sv-primary-light); color: #fff; text-decoration: none; }
     .sv-btn-ghost { background: transparent; color: var(--sv-primary); border-color: var(--sv-border); }
     .sv-btn-ghost:hover { background: var(--sv-surface); border-color: var(--sv-primary); text-decoration: none; }
+    .sv-btn-pill-green {
+      border-color: color-mix(in srgb, var(--sv-primary) 78%, #0f766e 22%);
+      background: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--sv-primary) 86%, #22c55e 14%) 0%,
+        color-mix(in srgb, var(--sv-primary) 70%, #15803d 30%) 100%
+      );
+      color: #fff;
+    }
+    .sv-btn-pill-green:hover {
+      border-color: color-mix(in srgb, var(--sv-primary) 86%, #0f766e 14%);
+      background: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--sv-primary) 92%, #22c55e 8%) 0%,
+        color-mix(in srgb, var(--sv-primary) 78%, #15803d 22%) 100%
+      );
+      color: #fff;
+      transform: translateY(-1px);
+      text-decoration: none;
+    }
+    .sv-btn-pill-orange {
+      border-color: color-mix(in srgb, var(--sv-accent) 78%, #9a3412 22%);
+      background: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--sv-accent) 92%, #fb923c 8%) 0%,
+        color-mix(in srgb, var(--sv-accent) 74%, #ea580c 26%) 100%
+      );
+      color: #fff;
+    }
+    .sv-btn-pill-orange:hover {
+      border-color: color-mix(in srgb, var(--sv-accent) 86%, #9a3412 14%);
+      background: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--sv-accent) 96%, #fb923c 4%) 0%,
+        color-mix(in srgb, var(--sv-accent) 80%, #ea580c 20%) 100%
+      );
+      color: #fff;
+      transform: translateY(-1px);
+      text-decoration: none;
+    }
+    .sv-btn.sv-btn-watch,
+    .sv-btn.sv-btn-watch:hover,
+    .sv-btn.sv-btn-watch:focus-visible,
+    .sv-btn.sv-btn-watch:active {
+      border-color: color-mix(in srgb, var(--sv-primary) 78%, #0f766e 22%);
+      background: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--sv-primary) 86%, #22c55e 14%) 0%,
+        color-mix(in srgb, var(--sv-primary) 70%, #15803d 30%) 100%
+      );
+      color: #fff;
+      text-decoration: none;
+    }
+    .sv-btn.sv-btn-watch:hover,
+    .sv-btn.sv-btn-watch:focus-visible,
+    .sv-btn.sv-btn-watch:active {
+      border-color: color-mix(in srgb, var(--sv-primary) 86%, #0f766e 14%);
+      background: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--sv-primary) 92%, #22c55e 8%) 0%,
+        color-mix(in srgb, var(--sv-primary) 78%, #15803d 22%) 100%
+      );
+      transform: translateY(-1px);
+    }
     .sv-card { background: var(--sv-surface); border: 1px solid var(--sv-border); border-radius: var(--sv-radius-lg); padding: 22px; box-shadow: var(--sv-shadow-sm); transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease; }
     .sv-card:hover { box-shadow: var(--sv-shadow); border-color: #d6d3d1; transform: translateY(-2px); }
     .sv-grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
@@ -1147,6 +1405,43 @@ interface DashboardNotification {
     .sv-form label { display: block; font-weight: 500; margin-bottom: 6px; color: var(--sv-ink); font-size: 0.95rem; }
     .sv-form .form-control, .sv-form textarea { width: 100%; padding: 12px 14px; border: 1px solid var(--sv-border); border-radius: var(--sv-radius); background: var(--sv-surface); color: var(--sv-ink); font-family: inherit; font-size: 1rem; }
     .sv-form .form-control:focus, .sv-form textarea:focus { outline: none; border-color: var(--sv-primary); box-shadow: 0 0 0 3px rgba(27, 58, 48, 0.12); }
+    .sv-form .form-control::placeholder, .sv-form textarea::placeholder { color: color-mix(in srgb, var(--sv-muted) 88%, var(--sv-ink) 12%); opacity: 1; }
+    [data-theme='dark'] .sv-form .form-control::placeholder,
+    [data-theme='dark'] .sv-form textarea::placeholder { color: color-mix(in srgb, #ffffff 86%, #cbd5e1 14%); opacity: 1; }
+    .sv-demo-points {
+      margin: 14px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 8px;
+    }
+    .sv-demo-points li {
+      position: relative;
+      padding: 8px 10px 8px 30px;
+      border: 1px solid color-mix(in srgb, var(--sv-border) 86%, transparent);
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--sv-surface) 90%, var(--sv-primary) 10%);
+      color: var(--sv-ink);
+      font-size: .86rem;
+      line-height: 1.38;
+    }
+    .sv-demo-points li::before {
+      content: '✓';
+      position: absolute;
+      left: 10px;
+      top: 8px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .68rem;
+      font-weight: 700;
+      color: #fff;
+      background: color-mix(in srgb, var(--sv-primary) 78%, #0f766e);
+      box-shadow: 0 2px 8px color-mix(in srgb, var(--sv-primary) 28%, transparent);
+    }
     .lead-success-msg {
       margin-top: 14px;
       padding: 12px 14px;
@@ -1171,8 +1466,9 @@ interface DashboardNotification {
       .trust-item h3 { font-size: 1.28rem; }
       .trust-item p { font-size: .86rem; }
       .pillar-layout { grid-template-columns: 1fr; }
-      .pillar-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .pillar-bullets { grid-template-columns: 1fr; }
+      .pillar-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .pillar-bullets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .benefit-card { flex: 0 0 min(82vw, 360px); }
     }
     @media (max-width: 720px) {
       .sv-container { padding: 0 16px; }
@@ -1189,11 +1485,13 @@ interface DashboardNotification {
       .feature-nav-btns { width: 100%; }
       .feature-nav-btns .sv-btn { flex: 1 1 0; width: auto; }
       .feature-rail-item { flex: 0 0 min(88vw, 340px); }
+      .testimonial-rail-item { flex: 0 0 min(88vw, 360px); }
       .sv-card { padding: 18px; }
       .pillar-panel { padding: 18px; }
       .pillar-tabs { padding: 10px; }
       .pillar-tabs .sv-btn { width: auto; }
       .pillar-metrics { grid-template-columns: 1fr; }
+      .pillar-bullets { grid-template-columns: 1fr; gap: 8px; }
       .tag-pill { min-width: 108px; padding: 7px 14px; }
     }
     @media (max-width: 520px) {
@@ -1220,6 +1518,8 @@ interface DashboardNotification {
 })
 export class MarketingLandingComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('featureRail') featureRail?: ElementRef<HTMLDivElement>;
+  @ViewChild('testimonialRail') testimonialRail?: ElementRef<HTMLDivElement>;
+  @ViewChild('benefitRail') benefitRail?: ElementRef<HTMLDivElement>;
   @ViewChild('collectionsChart') collectionsChart?: ElementRef<HTMLCanvasElement>;
   private readonly fb = inject(FormBuilder);
   private collectionsChartRef?: Chart;
@@ -1349,6 +1649,33 @@ export class MarketingLandingComponent implements OnInit, AfterViewInit, OnDestr
       quote: 'The parent communication and academic tracking experience is clean, fast, and very easy for our staff.',
       rating: 5,
       featured: true
+    },
+    {
+      id: 't-3',
+      name: 'M. Kapoor',
+      designation: 'Vice Principal',
+      institution: 'Riverdale International School',
+      quote: 'Admissions, attendance, and fee reconciliation now run on one timeline. Our team saves hours every day.',
+      rating: 5,
+      featured: true
+    },
+    {
+      id: 't-4',
+      name: 'S. Menon',
+      designation: 'Finance Head',
+      institution: 'Stellar Academy Group',
+      quote: 'Fee collection visibility and reminders improved month-end closure quality without adding manual follow-ups.',
+      rating: 5,
+      featured: true
+    },
+    {
+      id: 't-5',
+      name: 'A. Thomas',
+      designation: 'Operations Manager',
+      institution: 'Bluebell Public School',
+      quote: 'Role-based workflows are clear and practical. Staff adoption was smooth and parents noticed the difference quickly.',
+      rating: 5,
+      featured: true
     }
   ];
 
@@ -1378,7 +1705,22 @@ export class MarketingLandingComponent implements OnInit, AfterViewInit, OnDestr
       error: () => this.features.set(this.fallbackFeatures)
     });
     this.marketing.listTestimonials(true).subscribe({
-      next: list => this.testimonials.set(list.length ? list.slice(0, 4) : this.fallbackTestimonials),
+      next: list => {
+        const primary = list.slice(0, 5);
+        if (!primary.length) {
+          this.testimonials.set(this.fallbackTestimonials);
+          return;
+        }
+        if (primary.length < 5) {
+          const existingIds = new Set(primary.map(item => item.id));
+          const fillers = this.fallbackTestimonials
+            .filter(item => !existingIds.has(item.id))
+            .slice(0, 5 - primary.length);
+          this.testimonials.set([...primary, ...fillers]);
+          return;
+        }
+        this.testimonials.set(primary);
+      },
       error: () => this.testimonials.set(this.fallbackTestimonials)
     });
   }
@@ -1423,6 +1765,20 @@ export class MarketingLandingComponent implements OnInit, AfterViewInit, OnDestr
     const rail = this.featureRail?.nativeElement;
     if (!rail) return;
     const step = Math.max(rail.clientWidth * 0.8, 280);
+    rail.scrollBy({ left: direction * step, behavior: 'smooth' });
+  }
+
+  scrollTestimonialRail(direction: 1 | -1): void {
+    const rail = this.testimonialRail?.nativeElement;
+    if (!rail) return;
+    const step = Math.max(rail.clientWidth * 0.84, 280);
+    rail.scrollBy({ left: direction * step, behavior: 'smooth' });
+  }
+
+  scrollBenefitRail(direction: 1 | -1): void {
+    const rail = this.benefitRail?.nativeElement;
+    if (!rail) return;
+    const step = Math.max(rail.clientWidth * 0.78, 280);
     rail.scrollBy({ left: direction * step, behavior: 'smooth' });
   }
 

@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MarketingService, MarketingTestimonial } from '../../../core/services/marketing.service';
 import { MarketingSeoService } from '../../../core/services/marketing-seo.service';
@@ -16,9 +16,17 @@ import { FooterComponent } from '../shared/components/footer/footer.component';
     <section class="sv-section">
       <div class="sv-container">
         <span class="sv-eyebrow">Customers</span>
-        <h1 style="margin-top:10px; max-width:780px">Why school leaders choose SchoolVault.</h1>
-        <div class="sv-grid" style="margin-top:40px">
-          <sv-testimonial-card *ngFor="let testimonial of testimonials()" [t]="testimonial" />
+        <div class="sv-head-row">
+          <h1 style="margin-top:10px; max-width:780px">Why school leaders choose SchoolVault.</h1>
+          <div class="sv-nav-btns">
+            <button type="button" class="sv-btn sv-btn-ghost" (click)="scrollTestimonials(-1)">← Prev</button>
+            <button type="button" class="sv-btn sv-btn-ghost" (click)="scrollTestimonials(1)">Next →</button>
+          </div>
+        </div>
+        <div class="testimonial-rail" #testimonialRail>
+          <div class="testimonial-rail-item" *ngFor="let testimonial of testimonials()">
+            <sv-testimonial-card [t]="testimonial" />
+          </div>
         </div>
       </div>
     </section>
@@ -39,18 +47,40 @@ import { FooterComponent } from '../shared/components/footer/footer.component';
     h3 { font-weight: 600; font-size: 1.375rem; }
     .sv-eyebrow { text-transform: uppercase; letter-spacing: 0.16em; font-size: 0.78rem; font-weight: 600; color: var(--sv-accent); }
     .sv-muted { color: var(--sv-muted); }
-    .sv-grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .sv-head-row { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; }
+    .sv-nav-btns { display:flex; gap:8px; flex-wrap:wrap; }
+    .sv-btn { display:inline-flex; align-items:center; gap:8px; padding:11px 18px; border-radius:999px; font-weight:600; font-size:.9rem; border:1px solid transparent; cursor:pointer; text-decoration:none; transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
+    .sv-btn-ghost { background: transparent; color: var(--sv-primary); border-color: var(--sv-border); }
+    .sv-btn-ghost:hover { background: var(--sv-surface); border-color: var(--sv-primary); }
+    .testimonial-rail {
+      margin-top: 26px;
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      padding-bottom: 4px;
+      scrollbar-width: thin;
+    }
+    .testimonial-rail-item {
+      flex: 0 0 clamp(300px, 34vw, 430px);
+      scroll-snap-align: start;
+      transition: transform .22s ease;
+    }
+    .testimonial-rail-item:hover { transform: translateY(-4px); }
     .sv-card { background: var(--sv-surface); border: 1px solid var(--sv-border); border-radius: var(--sv-radius-lg); padding: 22px; box-shadow: var(--sv-shadow-sm); transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease; }
     .sv-card:hover { box-shadow: var(--sv-shadow); border-color: #d6d3d1; transform: translateY(-2px); }
     @media (max-width: 720px) {
       .sv-container { padding: 0 16px; }
       .sv-section { padding: 34px 0; }
-      .sv-grid { grid-template-columns: 1fr; }
+      .sv-nav-btns { width: 100%; }
+      .sv-nav-btns .sv-btn { flex: 1 1 0; justify-content: center; }
+      .testimonial-rail-item { flex: 0 0 min(88vw, 360px); }
     }
   `]
 })
 export class MarketingTestimonialsPageComponent implements OnInit {
   readonly testimonials = signal<MarketingTestimonial[]>([]);
+  @ViewChild('testimonialRail') testimonialRail?: ElementRef<HTMLDivElement>;
 
   constructor(
     private readonly marketing: MarketingService,
@@ -67,5 +97,12 @@ export class MarketingTestimonialsPageComponent implements OnInit {
       next: list => this.testimonials.set(list),
       error: () => this.testimonials.set([])
     });
+  }
+
+  scrollTestimonials(direction: 1 | -1): void {
+    const rail = this.testimonialRail?.nativeElement;
+    if (!rail) return;
+    const step = Math.max(rail.clientWidth * 0.84, 280);
+    rail.scrollBy({ left: direction * step, behavior: 'smooth' });
   }
 }
