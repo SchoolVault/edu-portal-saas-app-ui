@@ -12,6 +12,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { Chart, registerables } from 'chart.js';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { forkJoin, Subject } from 'rxjs';
@@ -39,7 +40,7 @@ interface SuperAdminChartPalette {
 @Component({
   selector: 'app-super-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpPaginationComponent, TranslateModule],
+  imports: [CommonModule, FormsModule, ErpPaginationComponent, TranslateModule, RouterLink],
   styles: [
     `
       .sa-detail-shell {
@@ -207,6 +208,10 @@ interface SuperAdminChartPalette {
           <p class="text-muted mb-0" style="font-size: 13px;">{{ 'superAdmin.lead' | translate }}</p>
         </div>
         <div class="erp-filter-toolbar__actions">
+          <a routerLink="/app/super-admin/leads" class="btn-outline-erp btn-sm erp-filter-toolbar__action">
+            <i class="bi bi-funnel-fill"></i>
+            Lead Dashboard
+          </a>
           <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="refreshPlatform()" [disabled]="refreshing">
             <i class="bi bi-arrow-clockwise"></i>
             {{ refreshing ? ('superAdmin.refreshing' | translate) : ('superAdmin.refresh' | translate) }}

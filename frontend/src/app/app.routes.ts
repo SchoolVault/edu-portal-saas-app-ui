@@ -16,7 +16,30 @@ import {
 import { featureModuleGuard } from './core/guards/feature-module.guard';
 
 export const routes: Routes = [
-  { path: '', redirectTo: 'login', pathMatch: 'full' },
+  {
+    path: '',
+    loadComponent: () => import('./features/marketing/landing/marketing-landing.component').then(m => m.MarketingLandingComponent)
+  },
+  {
+    path: 'features',
+    loadComponent: () =>
+      import('./features/marketing/features/marketing-features-page.component').then(m => m.MarketingFeaturesPageComponent)
+  },
+  {
+    path: 'testimonials',
+    loadComponent: () =>
+      import('./features/marketing/testimonials/marketing-testimonials-page.component').then(m => m.MarketingTestimonialsPageComponent)
+  },
+  {
+    path: 'videos',
+    loadComponent: () =>
+      import('./features/marketing/videos/marketing-videos-page.component').then(m => m.MarketingVideosPageComponent)
+  },
+  {
+    path: 'request-demo',
+    loadComponent: () =>
+      import('./features/marketing/request-demo/marketing-request-demo-page.component').then(m => m.MarketingRequestDemoPageComponent)
+  },
   {
     path: 'login',
     loadComponent: () => import('./features/auth/login/login.component').then(m => m.LoginComponent)
@@ -40,7 +63,36 @@ export const routes: Routes = [
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       { path: 'dashboard', loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent) },
+      {
+        path: 'marketing/videos',
+        loadComponent: () =>
+          import('./features/marketing/admin/marketing-admin-videos.component').then(m => m.MarketingAdminVideosComponent),
+        canActivate: [adminOnlyGuard]
+      },
+      {
+        path: 'marketing/leads',
+        loadComponent: () =>
+          import('./features/marketing/admin/marketing-admin-leads.component').then(m => m.MarketingAdminLeadsComponent),
+        canActivate: [adminOnlyGuard]
+      },
+      {
+        path: 'marketing/features',
+        loadComponent: () =>
+          import('./features/marketing/admin/marketing-admin-features.component').then(m => m.MarketingAdminFeaturesComponent),
+        canActivate: [adminOnlyGuard]
+      },
+      {
+        path: 'marketing/testimonials',
+        loadComponent: () =>
+          import('./features/marketing/admin/marketing-admin-testimonials.component').then(m => m.MarketingAdminTestimonialsComponent),
+        canActivate: [adminOnlyGuard]
+      },
       { path: 'super-admin', loadComponent: () => import('./features/super-admin/super-admin.component').then(m => m.SuperAdminComponent), canActivate: [superAdminGuard] },
+      {
+        path: 'super-admin/leads',
+        loadComponent: () => import('./features/super-admin/super-admin-leads.component').then(m => m.SuperAdminLeadsComponent),
+        canActivate: [superAdminGuard]
+      },
       {
         path: 'platform-health',
         loadComponent: () => import('./features/platform-health/platform-health.component').then(m => m.PlatformHealthComponent),
@@ -390,5 +442,5 @@ export const routes: Routes = [
       },
     ]
   },
-  { path: '**', redirectTo: 'login' }
+  { path: '**', redirectTo: '' }
 ];
