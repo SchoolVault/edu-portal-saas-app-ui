@@ -21,7 +21,7 @@ import { RouterLink } from '@angular/router';
   `,
   styles: [`
     .sv-section { padding: 64px 0; }
-    .sv-container { max-width:1180px; margin:0 auto; padding:0 24px; }
+    .sv-container { width:100%; max-width:100%; margin:0 auto; padding:0 clamp(14px, 2.2vw, 32px); }
     .sv-cta-band {
       background: linear-gradient(
         140deg,

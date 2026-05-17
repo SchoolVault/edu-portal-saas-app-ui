@@ -63,7 +63,7 @@ import { MarketingService } from '../../../../../core/services/marketing.service
       padding: 56px 0 40px;
       margin-top: 40px;
     }
-    .sv-container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+    .sv-container { width: 100%; max-width: 100%; margin: 0 auto; padding: 0 clamp(14px, 2.2vw, 32px); }
     .sv-footer__cols { display:grid; grid-template-columns:2fr 1fr 1fr; gap:24px; }
     .sv-logo { font-family: 'Fraunces', Georgia, serif; font-size: 1.4rem; font-weight: 700; }
     .sv-copy { margin-top:14px; max-width:380px; color:var(--footer-muted); }

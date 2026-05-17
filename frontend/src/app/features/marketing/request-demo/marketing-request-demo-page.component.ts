@@ -77,8 +77,8 @@ import { FooterComponent } from '../shared/components/footer/footer.component';
       color: var(--sv-ink);
       font-family: var(--sv-font-body);
     }
-    .sv-container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
-    .sv-section { padding: clamp(56px, 9vw, 112px) 0; }
+    .sv-container { width: 100%; max-width: 100%; margin: 0 auto; padding: 0 clamp(14px, 2.2vw, 32px); }
+    .sv-section { padding: clamp(42px, 6.8vw, 78px) 0; }
     h1, h3 { font-family: var(--sv-font-heading); color: var(--sv-ink); letter-spacing: -0.02em; line-height: 1.15; margin: 0; }
     h1 { font-weight: 700; font-size: clamp(2.25rem, 4.5vw, 3.5rem); }
     h3 { font-weight: 600; font-size: 1.375rem; }
@@ -89,7 +89,7 @@ import { FooterComponent } from '../shared/components/footer/footer.component';
     .sv-btn-primary:hover { background: var(--sv-accent-dark); color: #fff; transform: translateY(-1px); text-decoration: none; }
     .sv-btn-ghost { background: transparent; color: var(--sv-primary); border-color: var(--sv-border); }
     .sv-btn-ghost:hover { background: var(--sv-surface); border-color: var(--sv-primary); text-decoration: none; }
-    .sv-card { background: var(--sv-surface); border: 1px solid var(--sv-border); border-radius: var(--sv-radius-lg); padding: 28px; box-shadow: var(--sv-shadow-sm); transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease; }
+    .sv-card { background: var(--sv-surface); border: 1px solid var(--sv-border); border-radius: var(--sv-radius-lg); padding: 22px; box-shadow: var(--sv-shadow-sm); transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease; }
     .sv-card:hover { box-shadow: var(--sv-shadow); border-color: #d6d3d1; transform: translateY(-2px); }
     .sv-form label { display: block; font-weight: 500; margin-bottom: 6px; color: var(--sv-ink); font-size: 0.95rem; }
     .sv-form .form-control, .sv-form textarea { width: 100%; padding: 12px 14px; border: 1px solid var(--sv-border); border-radius: var(--sv-radius); background: var(--sv-surface); color: var(--sv-ink); font-family: inherit; font-size: 1rem; }
@@ -112,6 +112,7 @@ import { FooterComponent } from '../shared/components/footer/footer.component';
     }
     @media (max-width: 720px) {
       .sv-container { padding: 0 16px; }
+      .sv-section { padding: 34px 0; }
       .sv-card { padding: 18px; }
       .sv-btn { width: 100%; justify-content: center; }
     }

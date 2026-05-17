@@ -80,15 +80,15 @@ import { FooterComponent } from '../shared/components/footer/footer.component';
       --sv-font-heading: 'Fraunces', 'Avenir Next', 'Iowan Old Style', Georgia, serif; --sv-font-body: 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
       display: block; background: var(--sv-bg); color: var(--sv-ink); font-family: var(--sv-font-body);
     }
-    .sv-container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
-    .sv-section { padding: clamp(56px, 9vw, 112px) 0; }
+    .sv-container { width: 100%; max-width: 100%; margin: 0 auto; padding: 0 clamp(14px, 2.2vw, 32px); }
+    .sv-section { padding: clamp(42px, 6.8vw, 78px) 0; }
     h1, h3 { font-family: var(--sv-font-heading); color: var(--sv-ink); letter-spacing: -0.02em; line-height: 1.15; margin: 0; }
     h1 { font-weight: 700; font-size: clamp(2.25rem, 4.5vw, 3.5rem); }
     h3 { font-weight: 600; font-size: 1.375rem; }
     .sv-eyebrow { text-transform: uppercase; letter-spacing: 0.16em; font-size: 0.78rem; font-weight: 600; color: var(--sv-accent); }
     .sv-muted { color: var(--sv-muted); }
-    .sv-grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-    .sv-card { background: var(--sv-surface); border: 1px solid var(--sv-border); border-radius: var(--sv-radius-lg); padding: 28px; box-shadow: var(--sv-shadow-sm); transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease; }
+    .sv-grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .sv-card { background: var(--sv-surface); border: 1px solid var(--sv-border); border-radius: var(--sv-radius-lg); padding: 22px; box-shadow: var(--sv-shadow-sm); transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease; }
     .sv-card:hover { box-shadow: var(--sv-shadow); border-color: #d6d3d1; transform: translateY(-2px); }
     .sv-btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border-radius: 999px; font-weight: 600; font-size: 0.95rem; border: 1px solid transparent; cursor: pointer; text-decoration: none; }
     .sv-btn-primary { background: var(--sv-accent); color: #fff; }
@@ -101,6 +101,7 @@ import { FooterComponent } from '../shared/components/footer/footer.component';
     .form-control:focus { outline: none; border-color: var(--sv-primary); box-shadow: 0 0 0 3px rgba(27,58,48,.12); }
     @media (max-width: 720px) {
       .sv-container { padding: 0 16px; }
+      .sv-section { padding: 34px 0; }
       .sv-card { padding: 18px; }
       .sv-btn { width: 100%; justify-content: center; }
     }
